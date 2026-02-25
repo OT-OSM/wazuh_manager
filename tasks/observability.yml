@@ -1,0 +1,10 @@
+- name: Configure logrotate
+  ansible.builtin.copy:
+    dest: "{{ wazuh_logrotate_file }}"
+    content: |
+      {{ wazuh_log_dir }}/*.log {
+        daily
+        rotate {{ wazuh_log_retention_days }}
+        compress
+        missingok
+      }

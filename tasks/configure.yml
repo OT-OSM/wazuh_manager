@@ -1,0 +1,246 @@
+---
+
+# =====================================================
+# Render Configuration Files
+# =====================================================
+
+- name: Configure Manager
+  ansible.builtin.template:
+    src: manager.conf.j2
+    dest: "{{ wazuh_manager_config_file }}"
+    owner: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    mode: "0640"
+  notify: Restart wazuh-manager
+  when: wazuh_manager_enabled | bool
+
+- name: Configure Indexer
+  ansible.builtin.template:
+    src: indexer.yml.j2
+    dest: "{{ wazuh_indexer_config_file }}"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+  notify: Restart wazuh-indexer
+  when: wazuh_indexer_enabled | bool
+
+
+- name: Configure Dashboard
+  ansible.builtin.template:
+    src: dashboard.yml.j2
+    dest: "{{ wazuh_dashboard_config_file }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+  notify: Restart wazuh-dashboard
+  when: wazuh_dashboard_enabled | bool
+
+# =====================================================
+# Dashboard TLS Validation (Frontend SSL)
+# =====================================================
+
+- name: Ensure dashboard cert directory exists
+  ansible.builtin.file:
+    path: "{{ wazuh_dashboard_cert_file | dirname }}"
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0750"
+  when:
+    - wazuh_dashboard_ssl_enabled | bool
+    - wazuh_dashboard_cert_file | length > 0
+
+
+- name: Check dashboard certificate exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_dashboard_cert_file }}"
+  register: dashboard_cert_stat
+  when: wazuh_dashboard_ssl_enabled | bool
+
+
+- name: Check dashboard key exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_dashboard_key_file }}"
+  register: dashboard_key_stat
+  when: wazuh_dashboard_ssl_enabled | bool
+
+
+- name: Fail if dashboard certificate missing
+  ansible.builtin.fail:
+    msg: "Dashboard SSL certificate not found at {{ wazuh_dashboard_cert_file }}"
+  when:
+    - wazuh_dashboard_ssl_enabled | bool
+    - not dashboard_cert_stat.stat.exists
+
+
+- name: Fail if dashboard key missing
+  ansible.builtin.fail:
+    msg: "Dashboard SSL key not found at {{ wazuh_dashboard_key_file }}"
+  when:
+    - wazuh_dashboard_ssl_enabled | bool
+    - not dashboard_key_stat.stat.exists
+
+
+- name: Fix dashboard certificate permissions
+  ansible.builtin.file:
+    path: "{{ wazuh_dashboard_cert_file }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0644"
+  when:
+    - wazuh_dashboard_ssl_enabled | bool
+    - dashboard_cert_stat.stat.exists
+
+
+- name: Fix dashboard key permissions
+  ansible.builtin.file:
+    path: "{{ wazuh_dashboard_key_file }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0600"
+  when:
+    - wazuh_dashboard_ssl_enabled | bool
+    - dashboard_key_stat.stat.exists
+
+# =====================================================
+# Allow Dashboard to Read Indexer TLS Certificates
+# =====================================================
+
+- name: Ensure ACL package installed (Debian)
+  ansible.builtin.package:
+    name: acl
+    state: present
+  when:
+    - wazuh_tls_enabled | bool
+    - wazuh_dashboard_enabled | bool
+
+- name: Allow dashboard to read indexer certs
+  ansible.posix.acl:
+    path: "{{ item }}"
+    entity: wazuh-dashboard
+    etype: user
+    permissions: r
+    state: present
+  loop:
+    - "{{ wazuh_tls_admin_key_file }}"
+    - "{{ wazuh_tls_admin_cert_file }}"
+    - "{{ wazuh_tls_ca_file }}"
+  when:
+    - wazuh_tls_enabled | bool
+    - wazuh_dashboard_enabled | bool
+    
+# =====================================================
+# Generate Password Hashes
+# =====================================================
+
+- name: Generate admin password hash
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh -p {{ wazuh_admin_password }}
+  environment:
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: wazuh_admin_hash
+  changed_when: false
+  when: wazuh_indexer_enabled | bool
+
+- name: Generate dashboard service password hash
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh -p {{ wazuh_dashboard_service_password }}
+  environment:
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: wazuh_dashboard_hash
+  changed_when: false
+  when: wazuh_indexer_enabled | bool
+
+# =====================================================
+# Render internal_users.yml
+# =====================================================
+
+- name: Render internal users config
+  ansible.builtin.template:
+    src: internal_users.yml.j2
+    dest: /etc/wazuh-indexer/opensearch-security/internal_users.yml
+    owner: "{{ wazuh_indexer_user }}"
+    group: "{{ wazuh_indexer_user }}"
+    mode: "0600"
+  register: internal_users_result
+  when: wazuh_indexer_enabled | bool
+
+- name: Render roles mapping config
+  ansible.builtin.template:
+    src: roles_mapping.yml.j2
+    dest: /etc/wazuh-indexer/opensearch-security/roles_mapping.yml
+    owner: "{{ wazuh_indexer_user }}"
+    group: "{{ wazuh_indexer_user }}"
+    mode: "0600"
+  register: roles_result
+  when: wazuh_indexer_enabled | bool
+
+# =====================================================
+# Restart Indexer BEFORE Security Init
+# =====================================================
+
+- name: Restart wazuh-indexer before security init
+  ansible.builtin.systemd:
+    name: wazuh-indexer
+    state: restarted
+  when:
+    - wazuh_indexer_enabled | bool
+    - internal_users_result.changed or roles_result.changed
+
+- name: Wait for wazuh-indexer to be ready
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 9200
+    delay: 10
+    timeout: 120
+  when: wazuh_indexer_enabled | bool
+
+- name: Run security init
+  ansible.builtin.command: /usr/share/wazuh-indexer/bin/indexer-security-init.sh
+  when:
+    - wazuh_indexer_enabled | bool
+    - internal_users_result.changed
+
+- name: Restart wazuh-indexer after security init
+  ansible.builtin.systemd:
+    name: wazuh-indexer
+    state: restarted
+  when: internal_users_result.changed
+
+- name: Restart wazuh-dashboard after security init
+  ansible.builtin.systemd:
+    name: wazuh-dashboard
+    state: restarted
+  when: internal_users_result.changed
+
+# =====================================================
+# Ensure Directory Ownership
+# =====================================================
+
+- name: Ensure manager data directory ownership
+  ansible.builtin.file:
+    path: "{{ wazuh_data_dir }}"
+    state: directory
+    owner: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    mode: "0750"
+  when: wazuh_manager_enabled | bool
+
+- name: Ensure indexer data directory ownership
+  ansible.builtin.file:
+    path: "{{ wazuh_indexer_data_dir }}"
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+  when: wazuh_indexer_enabled | bool
+
+- name: Ensure wazuh indexer log directory ownership
+  ansible.builtin.file:
+    path: "/var/log/wazuh-indexer"
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"

@@ -1,0 +1,72 @@
+---
+
+# =====================================================
+# Wait for Indexer Port
+# =====================================================
+
+- name: Wait for Wazuh Indexer to start
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_runtime_host }}"
+    port: "{{ wazuh_indexer_port }}"
+    timeout: 300
+  when:
+    - wazuh_indexer_enabled | bool
+
+
+# =====================================================
+# Check Security Initialization via API (Proper Way)
+# =====================================================
+
+- name: Check if security already initialized
+  ansible.builtin.uri:
+    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}"
+    method: GET
+    validate_certs: no
+    status_code: [200,401,503]
+  register: security_status
+  failed_when: false
+  when:
+    - wazuh_indexer_enabled | bool
+
+
+# =====================================================
+# Initialize Security (Only if not initialized)
+# =====================================================
+
+- name: Initialize Wazuh Indexer security
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/bin/indexer-security-init.sh
+  register: security_init
+  changed_when: "'Security Admin v' in security_init.stdout"
+  when:
+    - wazuh_tls_enabled | bool
+    - wazuh_indexer_enabled | bool
+    - security_status.status == 503
+
+
+# =====================================================
+# Restart Indexer After Security Init
+# =====================================================
+
+- name: Restart wazuh-indexer after security init
+  ansible.builtin.service:
+    name: wazuh-indexer
+    state: restarted
+  when:
+    - wazuh_tls_enabled | bool
+    - wazuh_indexer_enabled | bool
+    - security_status.status == 503
+
+
+# =====================================================
+# Wait Again After Restart
+# =====================================================
+
+- name: Wait for Wazuh Indexer after restart
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_runtime_host }}"
+    port: "{{ wazuh_indexer_port }}"
+    timeout: 300
+  when:
+    - wazuh_tls_enabled | bool
+    - wazuh_indexer_enabled | bool

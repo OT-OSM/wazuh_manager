@@ -1,0 +1,20 @@
+- name: Enable and start wazuh-manager
+  ansible.builtin.systemd:
+    name: wazuh-manager
+    enabled: true
+    state: started
+  when: wazuh_manager_enabled | bool
+
+- name: Enable and start wazuh-indexer
+  ansible.builtin.systemd:
+    name: wazuh-indexer
+    enabled: true
+    state: started
+  when: wazuh_indexer_enabled | bool
+
+- name: Enable and start wazuh-dashboard
+  ansible.builtin.systemd:
+    name: wazuh-dashboard
+    enabled: true
+    state: started
+  when: wazuh_dashboard_enabled | bool

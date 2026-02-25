@@ -1,0 +1,20 @@
+<ossec_config>
+
+  <remote>
+    <connection>secure</connection>
+    <port>{{ wazuh_agent_port }}</port>
+    <protocol>tcp</protocol>
+  </remote>
+
+  <cluster>
+    {% if wazuh_deployment_mode == "single" %}
+    <disabled>yes</disabled>
+    {% else %}
+    <disabled>no</disabled>
+    <name>{{ wazuh_cluster_name }}</name>
+    <node_name>{{ inventory_hostname }}</node_name>
+    <key>{{ wazuh_cluster_key }}</key>
+    {% endif %}
+  </cluster>
+
+</ossec_config>

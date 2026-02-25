@@ -1,0 +1,5 @@
+- name: Configure JVM heap
+  ansible.builtin.template:
+    src: jvm.options.j2
+    dest: "{{ wazuh_indexer_jvm_file }}"
+  notify: Restart wazuh-indexer

@@ -1,0 +1,17 @@
+- name: Install Wazuh Manager
+  ansible.builtin.package:
+    name: wazuh-manager
+    state: present
+  when: wazuh_manager_enabled | bool
+
+- name: Install Wazuh Indexer
+  ansible.builtin.package:
+    name: wazuh-indexer
+    state: present
+  when: wazuh_indexer_enabled | bool
+
+- name: Install Wazuh Dashboard
+  ansible.builtin.package:
+    name: wazuh-dashboard
+    state: present
+  when: wazuh_dashboard_enabled | bool

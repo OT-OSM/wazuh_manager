@@ -1,0 +1,24 @@
+- name: Validate OS
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ["Debian", "RedHat"]
+
+- name: Validate admin credentials
+  ansible.builtin.assert:
+    that:
+      - wazuh_admin_user | length > 0
+      - wazuh_admin_password | length > 0
+
+- name: Validate TLS inputs
+  ansible.builtin.assert:
+    that:
+      - wazuh_tls_cert_file | length > 0
+      - wazuh_tls_key_file | length > 0
+      - wazuh_tls_ca_file | length > 0
+
+- name: Validate admin DN when TLS enabled
+  ansible.builtin.assert:
+    that:
+      - wazuh_admin_dn | length > 0
+    fail_msg: "wazuh_admin_dn must be defined when TLS is enabled."
+  when: wazuh_tls_enabled | bool
