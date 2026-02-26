@@ -1,3 +1,30 @@
+# =====================================================
+# Increase systemd timeout for wazuh-manager
+# =====================================================
+
+- name: Create systemd override directory for wazuh-manager
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-manager.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure systemd timeout override for wazuh-manager
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/wazuh-manager.service.d/override.conf
+    content: |
+      [Service]
+      TimeoutStartSec=300
+      TimeoutStopSec=300
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: Enable and start wazuh-manager
   ansible.builtin.systemd:
     name: wazuh-manager

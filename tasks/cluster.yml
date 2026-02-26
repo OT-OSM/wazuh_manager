@@ -1,9 +1,0 @@
-- name: Validate cluster key
-  assert:
-    that:
-      - wazuh_cluster_key | length > 0
-
-- name: Configure cluster in manager
-  template:
-    src: manager.conf.j2
-    dest: "{{ wazuh_config_dir }}/ossec.conf"

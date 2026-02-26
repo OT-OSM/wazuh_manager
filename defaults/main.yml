@@ -1,6 +1,5 @@
 # =====================================================
 # DEPLOYMENT MODE
-# single | cluster
 # =====================================================
 wazuh_deployment_mode: "single"
 
@@ -45,12 +44,13 @@ wazuh_agent_port: 1514
 wazuh_api_port: 55000
 wazuh_dashboard_port: 5601
 wazuh_indexer_port: 9200
+wazuh_cluster_port: 1516
+wazuh_enrollment_port: 1515
 
 # =====================================================
-# TLS (MANDATORY)
+# TLS
 # =====================================================
-
-wazuh_tls_enabled: true
+wazuh_tls_enabled: false
 
 wazuh_indexer_cert_dir: "/etc/wazuh-indexer/certs"
 
@@ -58,20 +58,17 @@ wazuh_tls_cert_file: "{{ wazuh_indexer_cert_dir }}/node.pem"
 wazuh_tls_key_file: "{{ wazuh_indexer_cert_dir }}/node-key.pem"
 wazuh_tls_ca_file: "{{ wazuh_indexer_cert_dir }}/root-ca.pem"
 
-# Admin client certificate for Dashboard → Indexer mTLS
-
 wazuh_tls_admin_cert_file: "{{ wazuh_indexer_cert_dir }}/admin.pem"
 wazuh_tls_admin_key_file: "{{ wazuh_indexer_cert_dir }}/admin-key.pem"
 
 # =====================================================
-# DASHBOARD TLS (Frontend SSL)
+# DASHBOARD TLS
 # =====================================================
-
 wazuh_dashboard_ssl_enabled: false
-wazuh_dashboard_ssl_verification_mode: "none"  
-wazuh_dashboard_cert_file: ""
-wazuh_dashboard_key_file: ""
-
+wazuh_dashboard_ssl_verification_mode: "none"
+wazuh_dashboard_cert_dir: "/etc/wazuh-dashboard/certs"
+wazuh_dashboard_cert_file: "{{ wazuh_dashboard_cert_dir }}/dashboard.pem"
+wazuh_dashboard_key_file: "{{ wazuh_dashboard_cert_dir }}/dashboard-key.pem"
 # =====================================================
 # AUTH
 # =====================================================
@@ -79,12 +76,11 @@ wazuh_admin_user: ""
 wazuh_admin_password: ""
 
 # =====================================================
-# CLUSTER (Future HA)
+# CLUSTER
 # =====================================================
 wazuh_cluster_name: "wazuh-cluster"
-wazuh_cluster_nodes: []
-wazuh_cluster_initial_masters: []
 wazuh_cluster_key: ""
+wazuh_cluster_enabled: "{{ wazuh_deployment_mode != 'single' }}"
 
 # =====================================================
 # RESOURCE LIMITS

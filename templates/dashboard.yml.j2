@@ -11,3 +11,10 @@ opensearch.ssl.certificateAuthorities: [{{ wazuh_tls_ca_file | quote }}]
 
 opensearch.ssl.certificate: {{ wazuh_tls_admin_cert_file | quote }}
 opensearch.ssl.key: {{ wazuh_tls_admin_key_file | quote }}
+
+server.ssl.enabled: {{ wazuh_dashboard_ssl_enabled | lower }}
+
+{% if wazuh_dashboard_ssl_enabled | bool %}
+server.ssl.certificate: {{ wazuh_dashboard_cert_file | quote }}
+server.ssl.key: {{ wazuh_dashboard_key_file | quote }}
+{% endif %}

@@ -1,17 +1,11 @@
 - name: Validate configuration
   ansible.builtin.include_tasks: validate.yml
 
-- name: Configure repositories
-  ansible.builtin.include_tasks: repo.yml
-
 - name: Install Wazuh components
   ansible.builtin.include_tasks: install.yml
 
 - name: Configure components
   ansible.builtin.include_tasks: configure.yml
-
-- name: Tune JVM
-  ansible.builtin.include_tasks: jvm.yml
 
 - name: Configure services
   ansible.builtin.include_tasks: service.yml
@@ -19,9 +13,6 @@
 - name: Initialize security index
   ansible.builtin.include_tasks: security.yml
   when: wazuh_tls_enabled | bool
-
-- name: Configure log rotation
-  ansible.builtin.include_tasks: observability.yml
 
 - name: Perform health checks
   ansible.builtin.include_tasks: verify.yml

@@ -1,24 +1,68 @@
+# =====================================================
+# Basic System Validation
+# =====================================================
+
 - name: Validate OS
   ansible.builtin.assert:
     that:
       - ansible_os_family in ["Debian", "RedHat"]
+    fail_msg: "Unsupported OS. Only Debian and RedHat families are supported."
+
+# =====================================================
+# Admin Credentials Validation
+# =====================================================
 
 - name: Validate admin credentials
   ansible.builtin.assert:
     that:
+      - wazuh_admin_user is defined
+      - wazuh_admin_password is defined
       - wazuh_admin_user | length > 0
       - wazuh_admin_password | length > 0
+    fail_msg: "Admin username and password must be defined."
 
-- name: Validate TLS inputs
+# =====================================================
+# TLS Validation
+# =====================================================
+
+- name: Validate TLS inputs when TLS enabled
   ansible.builtin.assert:
     that:
+      - wazuh_tls_cert_file is defined
+      - wazuh_tls_key_file is defined
+      - wazuh_tls_ca_file is defined
       - wazuh_tls_cert_file | length > 0
       - wazuh_tls_key_file | length > 0
       - wazuh_tls_ca_file | length > 0
+    fail_msg: "TLS certificate, key, and CA file must be defined when TLS is enabled."
+  when: wazuh_tls_enabled | default(false) | bool
 
 - name: Validate admin DN when TLS enabled
   ansible.builtin.assert:
     that:
+      - wazuh_admin_dn is defined
       - wazuh_admin_dn | length > 0
     fail_msg: "wazuh_admin_dn must be defined when TLS is enabled."
-  when: wazuh_tls_enabled | bool
+  when: wazuh_tls_enabled | default(false) | bool
+
+# =====================================================
+# Cluster Validation
+# =====================================================
+
+- name: Validate cluster settings when multi-node mode enabled
+  ansible.builtin.assert:
+    that:
+      - wazuh_cluster_name is defined
+      - wazuh_cluster_key is defined
+      - wazuh_cluster_name | length > 0
+      - wazuh_cluster_key | length > 0
+    fail_msg: "Cluster name and key must be defined when deployment mode is 'cluster'."
+  when: wazuh_deployment_mode | default("single") != "single"
+
+- name: Validate inventory grouping for cluster mode
+  ansible.builtin.assert:
+    that:
+      - groups['wazuh_cluster'] is defined
+      - groups['wazuh_cluster'] | length > 1
+    fail_msg: "Cluster mode requires 'wazuh_cluster' inventory group with multiple nodes."
+  when: wazuh_deployment_mode | default("single") != "single"
