@@ -30,10 +30,6 @@ cluster.initial_master_nodes: {{ wazuh_cluster_initial_masters }}
 # Security / TLS Configuration
 # =====================================================
 
-# =====================================================
-# Security / TLS Configuration
-# =====================================================
-
 {% if wazuh_tls_enabled | bool %}
 
 plugins.security.disabled: false
@@ -48,8 +44,14 @@ plugins.security.ssl.transport.pemcert_filepath: {{ wazuh_tls_cert_file }}
 plugins.security.ssl.transport.pemkey_filepath: {{ wazuh_tls_key_file }}
 plugins.security.ssl.transport.pemtrustedcas_filepath: {{ wazuh_tls_ca_file }}
 
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.transport.resolve_hostname: false
+
 plugins.security.authcz.admin_dn:
   - "{{ wazuh_admin_dn }}"
+
+plugins.security.nodes_dn:
+  - "{{ wazuh_node_dn }}"
 
 {% else %}
 

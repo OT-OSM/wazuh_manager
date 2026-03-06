@@ -80,7 +80,7 @@ wazuh_admin_password: ""
 # =====================================================
 wazuh_cluster_name: "wazuh-cluster"
 wazuh_cluster_key: ""
-wazuh_cluster_enabled: "{{ wazuh_deployment_mode != 'single' }}"
+wazuh_cluster_enabled: "{{ wazuh_deployment_mode == 'single' }}"
 
 # =====================================================
 # RESOURCE LIMITS
@@ -92,3 +92,6 @@ wazuh_java_heap_size: "2g"
 # OBSERVABILITY
 # =====================================================
 wazuh_log_retention_days: 30
+
+wazuh_node_dn: ""
+wazuh_admin_dn: ""

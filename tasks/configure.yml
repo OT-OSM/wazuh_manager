@@ -153,6 +153,36 @@
   when: wazuh_indexer_enabled | bool
 
 # =====================================================
+# Ensure Directory Ownership
+# =====================================================
+
+- name: Ensure manager data directory ownership
+  ansible.builtin.file:
+    path: "{{ wazuh_data_dir }}"
+    state: directory
+    owner: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    mode: "0750"
+  when: wazuh_manager_enabled | bool
+
+- name: Ensure indexer data directory ownership
+  ansible.builtin.file:
+    path: "{{ wazuh_indexer_data_dir }}"
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+  when: wazuh_indexer_enabled | bool
+
+- name: Ensure wazuh indexer log directory ownership
+  ansible.builtin.file:
+    path: "{{ wazuh_log_dir }}"
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+
+# =====================================================
 # Render internal_users.yml
 # =====================================================
 
@@ -176,6 +206,23 @@
   register: roles_result
   when: wazuh_indexer_enabled | bool
 
+- name: Configure JVM heap
+  ansible.builtin.template:
+    src: jvm.options.j2
+    dest: "{{ wazuh_indexer_jvm_file }}"
+  notify: Restart wazuh-indexer
+
+- name: Configure logrotate
+  ansible.builtin.copy:
+    dest: "{{ wazuh_logrotate_file }}"
+    content: |
+      {{ wazuh_log_dir }}/*.log {
+        daily
+        rotate {{ wazuh_log_retention_days }}
+        compress
+        missingok
+      }    
+
 # =====================================================
 # Restart Indexer BEFORE Security Init
 # =====================================================
@@ -186,7 +233,6 @@
     state: restarted
   when:
     - wazuh_indexer_enabled | bool
-    - internal_users_result.changed or roles_result.changed
 
 - name: Wait for wazuh-indexer to be ready
   ansible.builtin.wait_for:
@@ -213,51 +259,3 @@
     name: wazuh-dashboard
     state: restarted
   when: internal_users_result.changed
-
-# =====================================================
-# Ensure Directory Ownership
-# =====================================================
-
-- name: Ensure manager data directory ownership
-  ansible.builtin.file:
-    path: "{{ wazuh_data_dir }}"
-    state: directory
-    owner: "{{ wazuh_user }}"
-    group: "{{ wazuh_group }}"
-    mode: "0750"
-  when: wazuh_manager_enabled | bool
-
-- name: Ensure indexer data directory ownership
-  ansible.builtin.file:
-    path: "{{ wazuh_indexer_data_dir }}"
-    state: directory
-    owner: wazuh-indexer
-    group: wazuh-indexer
-    mode: "0750"
-  when: wazuh_indexer_enabled | bool
-
-- name: Ensure wazuh indexer log directory ownership
-  ansible.builtin.file:
-    path: "/var/log/wazuh-indexer"
-    state: directory
-    owner: wazuh-indexer
-    group: wazuh-indexer
-    mode: "0750"
-
-
-- name: Configure JVM heap
-  ansible.builtin.template:
-    src: jvm.options.j2
-    dest: "{{ wazuh_indexer_jvm_file }}"
-  notify: Restart wazuh-indexer
-
-- name: Configure logrotate
-  ansible.builtin.copy:
-    dest: "{{ wazuh_logrotate_file }}"
-    content: |
-      {{ wazuh_log_dir }}/*.log {
-        daily
-        rotate {{ wazuh_log_retention_days }}
-        compress
-        missingok
-      }    
