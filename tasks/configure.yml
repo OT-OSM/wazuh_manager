@@ -224,6 +224,45 @@
       }    
 
 # =====================================================
+# Ensure Wazuh Keystore Directory Exists
+# =====================================================
+
+- name: Ensure wazuh keystore directory exists
+  ansible.builtin.file:
+    path: /var/ossec/etc/keystore
+    state: directory
+    owner: wazuh
+    group: wazuh
+    mode: "0750"
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
+# Configure Indexer Credentials for Wazuh Manager
+# =====================================================
+
+- name: Configure indexer username in wazuh keystore
+  command: >
+    /var/ossec/bin/wazuh-keystore -f indexer -k username -v "{{ wazuh_indexer_username }}"
+  become: true
+  when: wazuh_manager_enabled | bool
+
+- name: Configure indexer password in wazuh keystore
+  command: >
+    /var/ossec/bin/wazuh-keystore -f indexer -k password -v "{{ wazuh_indexer_password }}"
+  become: true
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
+# Restart Manager to Load Keystore Credentials
+# =====================================================
+
+- name: Restart wazuh-manager to load keystore credentials
+  ansible.builtin.systemd:
+    name: wazuh-manager
+    state: restarted
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
 # Restart Indexer BEFORE Security Init
 # =====================================================
 

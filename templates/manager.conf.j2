@@ -57,12 +57,42 @@
     <directories check_all="yes">/etc,/usr/bin,/usr/sbin,/bin,/sbin,/boot</directories>
   </syscheck>
 
+  <!-- ================= LOG COLLECTION ================= -->
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/syslog</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/auth.log</location>
+  </localfile>
+
   <!-- ================= RULESET ================= -->
   <ruleset>
     <decoder_dir>ruleset/decoders</decoder_dir>
     <rule_dir>ruleset/rules</rule_dir>
     <rule_exclude>0215-policy_rules.xml</rule_exclude>
   </ruleset>
+
+  <!-- ================= INDEXER INTEGRATION ================= -->
+  <indexer>
+    <enabled>yes</enabled>
+
+    <hosts>
+      <host>{{ wazuh_indexer_url }}</host>
+    </hosts>
+
+    <ssl>
+      <certificate_authorities>
+        <ca>{{ wazuh_tls_ca_file }}</ca>
+      </certificate_authorities>
+      <certificate>{{ wazuh_tls_admin_cert_file }}</certificate>
+      <key>{{ wazuh_tls_admin_key_file }}</key>
+    </ssl>
+
+  </indexer>
 
   {% if wazuh_deployment_mode != "single" %}
 

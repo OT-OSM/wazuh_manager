@@ -74,6 +74,8 @@ wazuh_dashboard_key_file: "{{ wazuh_dashboard_cert_dir }}/dashboard-key.pem"
 # =====================================================
 wazuh_admin_user: ""
 wazuh_admin_password: ""
+wazuh_indexer_username: admin
+wazuh_indexer_password: Admin@123456
 
 # =====================================================
 # CLUSTER
