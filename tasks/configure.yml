@@ -378,7 +378,6 @@
   args:
     creates: /etc/filebeat/certs/root-ca.pem
 
-
 # -----------------------------------------------------
 # Set certificate permissions
 # -----------------------------------------------------

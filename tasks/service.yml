@@ -110,14 +110,14 @@
   ansible.builtin.uri:
     url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}/_cluster/health"
     method: GET
-    user: "{{ wazuh_indexer_username }}"
-    password: "{{ wazuh_indexer_password }}"
+    user: "{{ wazuh_admin_user }}"
+    password: "{{ wazuh_admin_password }}"
+    force_basic_auth: true
     validate_certs: false
     return_content: true
   register: indexer_health
   failed_when: false
   when: wazuh_indexer_enabled | bool
-
 
 - name: Fail if Indexer cluster is not ready
   ansible.builtin.fail:
