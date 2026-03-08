@@ -12,12 +12,11 @@
 - name: Configure components
   ansible.builtin.include_tasks: configure.yml
 
-- name: Configure services
-  ansible.builtin.include_tasks: service.yml
-
 - name: Initialize security index
   ansible.builtin.include_tasks: security.yml
-  when: wazuh_tls_enabled | bool
+
+- name: Configure services
+  ansible.builtin.include_tasks: service.yml
 
 - name: Perform health checks
   ansible.builtin.include_tasks: verify.yml
