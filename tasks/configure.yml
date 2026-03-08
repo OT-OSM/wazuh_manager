@@ -1,5 +1,4 @@
 ---
-
 # =====================================================
 # Render Configuration Files
 # =====================================================
@@ -24,6 +23,7 @@
   notify: Restart wazuh-indexer
   when: wazuh_indexer_enabled | bool
 
+
 - name: Configure Dashboard
   ansible.builtin.template:
     src: dashboard.yml.j2
@@ -34,8 +34,9 @@
   notify: Restart wazuh-dashboard
   when: wazuh_dashboard_enabled | bool
 
+
 # =====================================================
-# Dashboard TLS Validation (Frontend SSL)
+# Dashboard TLS Validation
 # =====================================================
 
 - name: Ensure dashboard cert directory exists
@@ -101,17 +102,19 @@
     - wazuh_dashboard_ssl_enabled | bool
     - dashboard_key_stat.stat.exists
 
+
 # =====================================================
 # Allow Dashboard to Read Indexer TLS Certificates
 # =====================================================
 
-- name: Ensure ACL package installed (Debian)
+- name: Ensure ACL package installed
   ansible.builtin.package:
     name: acl
     state: present
   when:
     - wazuh_tls_enabled | bool
     - wazuh_dashboard_enabled | bool
+
 
 - name: Allow dashboard to read indexer certs
   ansible.posix.acl:
@@ -128,29 +131,6 @@
     - wazuh_tls_enabled | bool
     - wazuh_dashboard_enabled | bool
 
-# =====================================================
-# Generate Password Hashes
-# =====================================================
-
-- name: Generate admin password hash
-  ansible.builtin.command: >
-    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh -p {{ wazuh_admin_password }}
-  environment:
-    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
-    JAVA_HOME: /usr/share/wazuh-indexer/jdk
-  register: wazuh_admin_hash
-  changed_when: false
-  when: wazuh_indexer_enabled | bool
-
-- name: Generate dashboard service password hash
-  ansible.builtin.command: >
-    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh -p {{ wazuh_dashboard_service_password }}
-  environment:
-    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
-    JAVA_HOME: /usr/share/wazuh-indexer/jdk
-  register: wazuh_dashboard_hash
-  changed_when: false
-  when: wazuh_indexer_enabled | bool
 
 # =====================================================
 # Ensure Directory Ownership
@@ -165,6 +145,7 @@
     mode: "0750"
   when: wazuh_manager_enabled | bool
 
+
 - name: Ensure indexer data directory ownership
   ansible.builtin.file:
     path: "{{ wazuh_indexer_data_dir }}"
@@ -173,6 +154,7 @@
     group: wazuh-indexer
     mode: "0750"
   when: wazuh_indexer_enabled | bool
+
 
 - name: Ensure wazuh indexer log directory ownership
   ansible.builtin.file:
@@ -183,7 +165,33 @@
     mode: "0750"
 
 # =====================================================
-# Render internal_users.yml
+# Generate password hashes for OpenSearch security
+# =====================================================
+
+- name: Generate admin password hash
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
+    -p "{{ wazuh_admin_password }}"
+  environment:
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: wazuh_admin_hash
+  changed_when: false
+  when: wazuh_indexer_enabled | bool
+
+- name: Generate dashboard password hash
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
+    -p "{{ wazuh_dashboard_service_password }}"
+  environment:
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: wazuh_dashboard_hash
+  changed_when: false
+  when: wazuh_indexer_enabled | bool
+  
+# =====================================================
+# Render Security Config Files
 # =====================================================
 
 - name: Render internal users config
@@ -193,8 +201,8 @@
     owner: "{{ wazuh_indexer_user }}"
     group: "{{ wazuh_indexer_user }}"
     mode: "0600"
-  register: internal_users_result
   when: wazuh_indexer_enabled | bool
+
 
 - name: Render roles mapping config
   ansible.builtin.template:
@@ -203,14 +211,19 @@
     owner: "{{ wazuh_indexer_user }}"
     group: "{{ wazuh_indexer_user }}"
     mode: "0600"
-  register: roles_result
   when: wazuh_indexer_enabled | bool
+
+
+# =====================================================
+# JVM and Logrotate
+# =====================================================
 
 - name: Configure JVM heap
   ansible.builtin.template:
     src: jvm.options.j2
     dest: "{{ wazuh_indexer_jvm_file }}"
   notify: Restart wazuh-indexer
+
 
 - name: Configure logrotate
   ansible.builtin.copy:
@@ -221,10 +234,11 @@
         rotate {{ wazuh_log_retention_days }}
         compress
         missingok
-      }    
+      }
+
 
 # =====================================================
-# Ensure Wazuh Keystore Directory Exists
+# Manager Keystore
 # =====================================================
 
 - name: Ensure wazuh keystore directory exists
@@ -236,65 +250,181 @@
     mode: "0750"
   when: wazuh_manager_enabled | bool
 
-# =====================================================
-# Configure Indexer Credentials for Wazuh Manager
-# =====================================================
-
 - name: Configure indexer username in wazuh keystore
   command: >
     /var/ossec/bin/wazuh-keystore -f indexer -k username -v "{{ wazuh_indexer_username }}"
-  become: true
   when: wazuh_manager_enabled | bool
+
 
 - name: Configure indexer password in wazuh keystore
   command: >
     /var/ossec/bin/wazuh-keystore -f indexer -k password -v "{{ wazuh_indexer_password }}"
-  become: true
   when: wazuh_manager_enabled | bool
 
-# =====================================================
-# Restart Manager to Load Keystore Credentials
-# =====================================================
-
-- name: Restart wazuh-manager to load keystore credentials
-  ansible.builtin.systemd:
-    name: wazuh-manager
-    state: restarted
-  when: wazuh_manager_enabled | bool
 
 # =====================================================
-# Restart Indexer BEFORE Security Init
+# Filebeat Configuration (As per Wazuh 4.14 documentation)
 # =====================================================
 
-- name: Restart wazuh-indexer before security init
-  ansible.builtin.systemd:
-    name: wazuh-indexer
-    state: restarted
-  when:
-    - wazuh_indexer_enabled | bool
+# -----------------------------------------------------
+# Render Filebeat configuration
+# -----------------------------------------------------
 
-- name: Wait for wazuh-indexer to be ready
-  ansible.builtin.wait_for:
-    host: 127.0.0.1
-    port: 9200
-    delay: 10
-    timeout: 120
-  when: wazuh_indexer_enabled | bool
+- name: Configure Filebeat
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart filebeat
 
-- name: Run security init
-  ansible.builtin.command: /usr/share/wazuh-indexer/bin/indexer-security-init.sh
-  when:
-    - wazuh_indexer_enabled | bool
-    - internal_users_result.changed
+# -----------------------------------------------------
+# Fix existing Filebeat keystore permissions if present
+# -----------------------------------------------------
 
-- name: Restart wazuh-indexer after security init
-  ansible.builtin.systemd:
-    name: wazuh-indexer
-    state: restarted
-  when: internal_users_result.changed
+- name: Fix existing Filebeat keystore permissions
+  ansible.builtin.file:
+    path: /var/lib/filebeat/filebeat.keystore
+    owner: root
+    group: root
+    mode: "0600"
+  ignore_errors: true
 
-- name: Restart wazuh-dashboard after security init
-  ansible.builtin.systemd:
-    name: wazuh-dashboard
-    state: restarted
-  when: internal_users_result.changed
+# -----------------------------------------------------
+# Create Filebeat keystore
+# -----------------------------------------------------
+
+- name: Create Filebeat keystore
+  ansible.builtin.command: filebeat keystore create
+  args:
+    creates: /var/lib/filebeat/filebeat.keystore
+
+# -----------------------------------------------------
+# Ensure keystore permissions
+# -----------------------------------------------------
+
+- name: Ensure Filebeat keystore permissions
+  ansible.builtin.file:
+    path: /var/lib/filebeat/filebeat.keystore
+    owner: root
+    group: root
+    mode: "0600"
+    
+# -----------------------------------------------------
+# Add Filebeat username to keystore
+# -----------------------------------------------------
+
+- name: Add Filebeat username to keystore
+  ansible.builtin.shell: |
+    echo "{{ wazuh_indexer_username }}" | filebeat keystore add username --stdin --force
+  changed_when: false
+
+- name: Add Filebeat password to keystore
+  ansible.builtin.shell: |
+    echo "{{ wazuh_indexer_password }}" | filebeat keystore add password --stdin --force
+  changed_when: false
+
+# -----------------------------------------------------
+# Download Wazuh alerts template
+# -----------------------------------------------------
+
+- name: Download Wazuh alerts template
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/wazuh/wazuh/v4.14.3/extensions/elasticsearch/7.x/wazuh-template.json"
+    dest: /etc/filebeat/wazuh-template.json
+    mode: "0644"
+
+
+# -----------------------------------------------------
+# Ensure template readable
+# -----------------------------------------------------
+
+- name: Ensure wazuh template permissions
+  ansible.builtin.file:
+    path: /etc/filebeat/wazuh-template.json
+    mode: "0644"
+
+# -----------------------------------------------------
+# Deploy Filebeat certificates
+# -----------------------------------------------------
+
+- name: Create Filebeat cert directory
+  ansible.builtin.file:
+    path: /etc/filebeat/certs
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+
+- name: Move Filebeat certificate
+  ansible.builtin.command: >
+    mv {{ wazuh_certificates_dir }}/{{ wazuh_manager_node_name }}.pem /etc/filebeat/certs/filebeat.pem
+  args:
+    creates: /etc/filebeat/certs/filebeat.pem
+
+
+- name: Move Filebeat key
+  ansible.builtin.command: >
+    mv {{ wazuh_certificates_dir }}/{{ wazuh_manager_node_name }}-key.pem /etc/filebeat/certs/filebeat-key.pem
+  args:
+    creates: /etc/filebeat/certs/filebeat-key.pem
+
+
+- name: Copy root CA to Filebeat
+  ansible.builtin.command: >
+    cp {{ wazuh_tls_ca_file }} /etc/filebeat/certs/root-ca.pem
+  args:
+    creates: /etc/filebeat/certs/root-ca.pem
+
+
+# -----------------------------------------------------
+# Set certificate permissions
+# -----------------------------------------------------
+
+- name: Set Filebeat cert directory permissions
+  ansible.builtin.file:
+    path: /etc/filebeat/certs
+    owner: root
+    group: root
+    mode: "0500"
+
+
+- name: Set Filebeat certificate file permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0400"
+  loop:
+    - /etc/filebeat/certs/filebeat.pem
+    - /etc/filebeat/certs/filebeat-key.pem
+    - /etc/filebeat/certs/root-ca.pem
+
+
+# =====================================================
+# Ensure dashboard API config directory exists
+# =====================================================
+
+- name: Ensure Wazuh dashboard API config directory exists
+  ansible.builtin.file:
+    path: /usr/share/wazuh-dashboard/data/wazuh/config
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0755"
+  when: wazuh_dashboard_enabled | bool
+
+# =====================================================
+# Configure Wazuh Dashboard API connection
+# =====================================================
+
+- name: Configure Wazuh dashboard API connection
+  ansible.builtin.template:
+    src: wazuh-dashboard-api.yml.j2
+    dest: /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+  when: wazuh_dashboard_enabled | bool

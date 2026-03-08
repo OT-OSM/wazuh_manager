@@ -1,22 +1,80 @@
-- name: Add GPG key (Debian)
+---
+# =====================================================
+# Install package dependencies
+# =====================================================
+
+- name: Install indexer dependencies (Debian)
+  ansible.builtin.apt:
+    name:
+      - debconf
+      - adduser
+      - procps
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install repository dependencies (Debian)
+  ansible.builtin.apt:
+    name:
+      - gnupg
+      - apt-transport-https
+    state: present
+  when: ansible_os_family == "Debian"
+
+# =====================================================
+# Install dashboard dependencies (Documentation step)
+# =====================================================
+
+- name: Install Wazuh Dashboard dependencies (Debian)
+  ansible.builtin.apt:
+    name:
+      - debhelper
+      - tar
+      - curl
+      - libcap2-bin
+    state: present
+  when:
+    - ansible_os_family == "Debian"
+    - wazuh_dashboard_enabled | bool
+
+# =====================================================
+# Add Wazuh repository
+# =====================================================
+
+- name: Add Wazuh GPG key (Debian)
   ansible.builtin.apt_key:
     url: "{{ wazuh_repo_gpg_key_url }}"
     state: present
   when: ansible_os_family == "Debian"
 
-- name: Add repo (Debian)
+- name: Add Wazuh repository (Debian)
   ansible.builtin.apt_repository:
     repo: "{{ wazuh_repo_url_debian }}"
     state: present
   when: ansible_os_family == "Debian"
 
-- name: Add repo (RHEL)
+- name: Add Wazuh repository (RHEL)
   ansible.builtin.yum_repository:
     name: wazuh
+    description: Wazuh repository
     baseurl: "{{ wazuh_repo_url_rhel }}"
+    gpgcheck: yes
     gpgkey: "{{ wazuh_repo_gpg_key_url }}"
-    enabled: true
+    enabled: yes
   when: ansible_os_family == "RedHat"
+
+# =====================================================
+# Update package cache
+# =====================================================
+
+- name: Update apt cache (Debian)
+  ansible.builtin.apt:
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+# =====================================================
+# Install Wazuh components
+# =====================================================
 
 - name: Install Wazuh Manager
   ansible.builtin.package:
@@ -35,3 +93,22 @@
     name: wazuh-dashboard
     state: present
   when: wazuh_dashboard_enabled | bool
+
+# =====================================================
+# Install Filebeat
+# =====================================================
+
+- name: Install Filebeat
+  ansible.builtin.package:
+    name: filebeat
+    state: present
+
+# =====================================================
+# Install Wazuh Filebeat module
+# =====================================================
+
+- name: Install Wazuh Filebeat module
+  ansible.builtin.unarchive:
+    src: https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.5.tar.gz
+    dest: /usr/share/filebeat/module
+    remote_src: true

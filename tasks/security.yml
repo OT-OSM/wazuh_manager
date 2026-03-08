@@ -14,7 +14,7 @@
 
 
 # =====================================================
-# Check Security Initialization via API (Proper Way)
+# Check Security Initialization
 # =====================================================
 
 - name: Check if security already initialized
@@ -30,7 +30,7 @@
 
 
 # =====================================================
-# Initialize Security (Only if not initialized)
+# Initialize Security Index
 # =====================================================
 
 - name: Initialize Wazuh Indexer security
@@ -45,17 +45,36 @@
 
 
 # =====================================================
-# Restart Indexer After Security Init
+# Push Security Configuration (IMPORTANT)
 # =====================================================
 
-- name: Restart wazuh-indexer after security init
+- name: Apply OpenSearch security configuration
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
+    -cd /etc/wazuh-indexer/opensearch-security
+    -key {{ wazuh_tls_admin_key_file }}
+    -cert {{ wazuh_tls_admin_cert_file }}
+    -cacert {{ wazuh_tls_ca_file }}
+    -icl -nhnv
+  environment:
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  when:
+    - wazuh_tls_enabled | bool
+    - wazuh_indexer_enabled | bool
+
+
+# =====================================================
+# Restart Indexer
+# =====================================================
+
+- name: Restart wazuh-indexer after security config
   ansible.builtin.service:
     name: wazuh-indexer
     state: restarted
   when:
     - wazuh_tls_enabled | bool
     - wazuh_indexer_enabled | bool
-    - security_status.status == 503
 
 
 # =====================================================

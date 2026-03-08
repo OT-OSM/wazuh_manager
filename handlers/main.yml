@@ -19,3 +19,9 @@
     OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
     JAVA_HOME: /usr/share/wazuh-indexer/jdk
   notify: Restart wazuh-indexer
+  when: wazuh_indexer_enabled | bool
+
+- name: Restart filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    state: restarted

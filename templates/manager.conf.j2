@@ -13,11 +13,13 @@
     <email_maxperhour>12</email_maxperhour>
   </global>
 
+
   <!-- ================= ALERT SETTINGS ================= -->
   <alerts>
-    <log_alert_level>3</log_alert_level>
+    <log_alert_level>1</log_alert_level>
     <email_alert_level>12</email_alert_level>
   </alerts>
+
 
   <!-- ================= REMOTE AGENT COMMUNICATION ================= -->
   <remote>
@@ -27,14 +29,16 @@
     <queue_size>131072</queue_size>
   </remote>
 
+
   <!-- ================= AGENT ENROLLMENT ================= -->
   <auth>
     <disabled>no</disabled>
-    <port>1515</port>
+    <port>{{ wazuh_enrollment_port }}</port>
     <use_source_ip>yes</use_source_ip>
     <purge>yes</purge>
     <use_password>no</use_password>
   </auth>
+
 
   <!-- ================= ROOTCHECK ================= -->
   <rootcheck>
@@ -49,6 +53,7 @@
     <check_if>yes</check_if>
   </rootcheck>
 
+
   <!-- ================= SYSCHECK ================= -->
   <syscheck>
     <disabled>no</disabled>
@@ -56,6 +61,7 @@
     <scan_on_start>yes</scan_on_start>
     <directories check_all="yes">/etc,/usr/bin,/usr/sbin,/bin,/sbin,/boot</directories>
   </syscheck>
+
 
   <!-- ================= LOG COLLECTION ================= -->
 
@@ -69,6 +75,7 @@
     <location>/var/log/auth.log</location>
   </localfile>
 
+
   <!-- ================= RULESET ================= -->
   <ruleset>
     <decoder_dir>ruleset/decoders</decoder_dir>
@@ -76,29 +83,35 @@
     <rule_exclude>0215-policy_rules.xml</rule_exclude>
   </ruleset>
 
+
   <!-- ================= INDEXER INTEGRATION ================= -->
+  <!-- As per Wazuh documentation -->
+
   <indexer>
     <enabled>yes</enabled>
 
     <hosts>
-      <host>{{ wazuh_indexer_url }}</host>
+      <host>https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}</host>
     </hosts>
 
     <ssl>
       <certificate_authorities>
-        <ca>{{ wazuh_tls_ca_file }}</ca>
+        <ca>/etc/filebeat/certs/root-ca.pem</ca>
       </certificate_authorities>
-      <certificate>{{ wazuh_tls_admin_cert_file }}</certificate>
-      <key>{{ wazuh_tls_admin_key_file }}</key>
+
+      <certificate>/etc/filebeat/certs/filebeat.pem</certificate>
+      <key>/etc/filebeat/certs/filebeat-key.pem</key>
     </ssl>
 
   </indexer>
 
+
   {% if wazuh_deployment_mode != "single" %}
 
-  <!-- ================= CLUSTER (ONLY IF HA MODE) ================= -->
+  <!-- ================= CLUSTER CONFIGURATION ================= -->
+  <!-- Only used for multi-node deployment -->
+
   <cluster>
-    <disabled>no</disabled>
     <name>{{ wazuh_cluster_name }}</name>
     <node_name>{{ inventory_hostname }}</node_name>
     <node_type>master</node_type>
@@ -111,6 +124,9 @@
       <node>{{ hostvars[host]['ansible_host'] | default(host) }}</node>
       {% endfor %}
     </nodes>
+
+    <hidden>no</hidden>
+    <disabled>no</disabled>
   </cluster>
 
   {% endif %}

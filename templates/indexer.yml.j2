@@ -3,7 +3,7 @@
 # =====================================================
 
 cluster.name: {{ wazuh_cluster_name }}
-node.name: {{ inventory_hostname }}
+node.name: {{ wazuh_indexer_node_name }}
 
 network.host: {{ wazuh_bind_address }}
 http.port: {{ wazuh_indexer_port }}
@@ -47,11 +47,13 @@ plugins.security.ssl.transport.pemtrustedcas_filepath: {{ wazuh_tls_ca_file }}
 plugins.security.ssl.transport.enforce_hostname_verification: false
 plugins.security.ssl.transport.resolve_hostname: false
 
+plugins.security.allow_default_init_securityindex: true
+
 plugins.security.authcz.admin_dn:
   - "{{ wazuh_admin_dn }}"
 
 plugins.security.nodes_dn:
-  - "{{ wazuh_node_dn }}"
+  - "CN={{ wazuh_indexer_node_name }}"
 
 {% else %}
 

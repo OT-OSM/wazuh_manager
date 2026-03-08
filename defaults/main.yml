@@ -6,7 +6,7 @@ wazuh_deployment_mode: "single"
 # =====================================================
 # VERSION
 # =====================================================
-wazuh_version: "4.7.0"
+wazuh_version: "4.14"
 
 # =====================================================
 # COMPONENTS
@@ -40,6 +40,7 @@ wazuh_log_dir: "/var/log/wazuh"
 # NETWORK
 # =====================================================
 wazuh_bind_address: "0.0.0.0"
+wazuh_runtime_host: "{{ ansible_default_ipv4.address }}"
 wazuh_agent_port: 1514
 wazuh_api_port: 55000
 wazuh_dashboard_port: 5601
@@ -48,41 +49,60 @@ wazuh_cluster_port: 1516
 wazuh_enrollment_port: 1515
 
 # =====================================================
-# TLS
+# TLS CONFIGURATION
 # =====================================================
-wazuh_tls_enabled: false
+wazuh_tls_enabled: true
 
 wazuh_indexer_cert_dir: "/etc/wazuh-indexer/certs"
 
-wazuh_tls_cert_file: "{{ wazuh_indexer_cert_dir }}/node.pem"
-wazuh_tls_key_file: "{{ wazuh_indexer_cert_dir }}/node-key.pem"
+wazuh_tls_cert_file: "{{ wazuh_indexer_cert_dir }}/indexer.pem"
+wazuh_tls_key_file: "{{ wazuh_indexer_cert_dir }}/indexer-key.pem"
 wazuh_tls_ca_file: "{{ wazuh_indexer_cert_dir }}/root-ca.pem"
 
 wazuh_tls_admin_cert_file: "{{ wazuh_indexer_cert_dir }}/admin.pem"
 wazuh_tls_admin_key_file: "{{ wazuh_indexer_cert_dir }}/admin-key.pem"
 
 # =====================================================
+# CERTIFICATE GENERATION
+# =====================================================
+wazuh_cert_tool_dir: "/etc/wazuh-certs"
+wazuh_cert_config: "{{ wazuh_cert_tool_dir }}/config.yml"
+wazuh_cert_script: "{{ wazuh_cert_tool_dir }}/wazuh-certs-tool.sh"
+wazuh_certificates_dir: "{{ wazuh_cert_tool_dir }}/wazuh-certificates"
+
+# Node names used for cert generation
+wazuh_indexer_node_name: "node-1"
+wazuh_manager_node_name: "wazuh-1"
+wazuh_dashboard_node_name: "dashboard"
+
+# =====================================================
 # DASHBOARD TLS
 # =====================================================
-wazuh_dashboard_ssl_enabled: false
-wazuh_dashboard_ssl_verification_mode: "none"
+wazuh_dashboard_ssl_enabled: true
+wazuh_dashboard_ssl_verification_mode: "certificate"
+
 wazuh_dashboard_cert_dir: "/etc/wazuh-dashboard/certs"
 wazuh_dashboard_cert_file: "{{ wazuh_dashboard_cert_dir }}/dashboard.pem"
 wazuh_dashboard_key_file: "{{ wazuh_dashboard_cert_dir }}/dashboard-key.pem"
+
 # =====================================================
 # AUTH
 # =====================================================
-wazuh_admin_user: ""
-wazuh_admin_password: ""
-wazuh_indexer_username: admin
-wazuh_indexer_password: Admin@123456
+wazuh_admin_user: "admin"
+wazuh_admin_password: "Admin@123456"
+
+wazuh_indexer_username: "admin"
+wazuh_indexer_password: "Admin@123456"
+
+wazuh_dashboard_service_user: "kibanaserver"
+wazuh_dashboard_service_password: "Dash@123"
 
 # =====================================================
 # CLUSTER
 # =====================================================
 wazuh_cluster_name: "wazuh-cluster"
 wazuh_cluster_key: ""
-wazuh_cluster_enabled: "{{ wazuh_deployment_mode == 'single' }}"
+wazuh_cluster_enabled: "{{ wazuh_deployment_mode != 'single' }}"
 
 # =====================================================
 # RESOURCE LIMITS
@@ -95,5 +115,8 @@ wazuh_java_heap_size: "2g"
 # =====================================================
 wazuh_log_retention_days: 30
 
-wazuh_node_dn: ""
-wazuh_admin_dn: ""
+# =====================================================
+# TLS DN CONFIGURATION
+# =====================================================
+wazuh_node_dn: "CN={{ wazuh_indexer_node_name }}"
+wazuh_admin_dn: "CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"

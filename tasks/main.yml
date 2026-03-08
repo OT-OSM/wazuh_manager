@@ -1,8 +1,13 @@
+
 - name: Validate configuration
   ansible.builtin.include_tasks: validate.yml
 
 - name: Install Wazuh components
   ansible.builtin.include_tasks: install.yml
+
+- name: Generate Wazuh certificates
+  ansible.builtin.include_tasks: certs.yml
+  when: wazuh_tls_enabled | bool
 
 - name: Configure components
   ansible.builtin.include_tasks: configure.yml

@@ -45,3 +45,122 @@
     enabled: true
     state: started
   when: wazuh_dashboard_enabled | bool
+
+- name: Enable and start filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    enabled: true
+    state: started
+
+# =====================================================
+# Wait for Indexer
+# =====================================================
+
+- name: Wait for Wazuh Indexer port
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_runtime_host }}"
+    port: "{{ wazuh_indexer_port }}"
+    timeout: 120
+  when: wazuh_indexer_enabled | bool
+
+# -----------------------------------------------------
+# Load Wazuh index template
+# -----------------------------------------------------
+
+- name: Load Wazuh index template into Indexer
+  ansible.builtin.command: filebeat setup --index-management
+  environment:
+    FILEBEAT_STRICT_PERMS: "false"
+  register: filebeat_setup
+  changed_when: "'Loaded index template' in filebeat_setup.stdout or 'template already exists' in filebeat_setup.stdout"
+
+# =====================================================
+# Verify Filebeat → Indexer connectivity
+# =====================================================
+
+- name: Test Filebeat output connectivity
+  ansible.builtin.command: filebeat test output
+  register: filebeat_test
+  changed_when: false
+  failed_when: false
+
+
+- name: Fail if Filebeat cannot reach Wazuh Indexer
+  ansible.builtin.fail:
+    msg: |
+      Filebeat failed to connect to Wazuh Indexer.
+
+      Command Output:
+      {{ filebeat_test.stdout }}
+
+      Error:
+      {{ filebeat_test.stderr }}
+  when: "'talk to server... OK' not in filebeat_test.stdout"
+
+
+- name: Show Filebeat test output
+  ansible.builtin.debug:
+    var: filebeat_test.stdout_lines
+
+# =====================================================
+# Verify Wazuh Indexer cluster health
+# =====================================================
+
+- name: Check Wazuh Indexer cluster health
+  ansible.builtin.uri:
+    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}/_cluster/health"
+    method: GET
+    user: "{{ wazuh_indexer_username }}"
+    password: "{{ wazuh_indexer_password }}"
+    validate_certs: false
+    return_content: true
+  register: indexer_health
+  failed_when: false
+  when: wazuh_indexer_enabled | bool
+
+
+- name: Fail if Indexer cluster is not ready
+  ansible.builtin.fail:
+    msg: |
+      Wazuh Indexer cluster is not ready.
+
+      Response:
+      {{ indexer_health.content }}
+  when:
+    - wazuh_indexer_enabled | bool
+    - "'green' not in indexer_health.content and 'yellow' not in indexer_health.content"
+
+# =====================================================
+# Verify Wazuh Manager service
+# =====================================================
+
+- name: Check wazuh-manager service status
+  ansible.builtin.command: systemctl is-active wazuh-manager
+  register: manager_status
+  changed_when: false
+  failed_when: false
+  when: wazuh_manager_enabled | bool
+
+
+- name: Fail if wazuh-manager not running
+  ansible.builtin.fail:
+    msg: "Wazuh Manager service is not running."
+  when:
+    - wazuh_manager_enabled | bool
+    - manager_status.stdout != "active"
+
+# =====================================================
+# Verify Filebeat service
+# =====================================================
+
+- name: Check filebeat service status
+  ansible.builtin.command: systemctl is-active filebeat
+  register: filebeat_status
+  changed_when: false
+  failed_when: false
+
+
+- name: Fail if Filebeat service not running
+  ansible.builtin.fail:
+    msg: "Filebeat service is not running."
+  when: filebeat_status.stdout != "active"
