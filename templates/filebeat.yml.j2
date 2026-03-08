@@ -1,4 +1,14 @@
-# Wazuh - Filebeat configuration file
+# =====================================================
+# Load Filebeat modules
+# =====================================================
+
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+# =====================================================
+# Output configuration
+# =====================================================
 
 output.elasticsearch:
   hosts: ["https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}"]
@@ -11,18 +21,19 @@ output.elasticsearch:
   ssl.certificate: "{{ wazuh_tls_admin_cert_file }}"
   ssl.key: "{{ wazuh_tls_admin_key_file }}"
 
+# =====================================================
+# Template
+# =====================================================
+
 setup.template.json.enabled: true
 setup.template.json.path: "/etc/filebeat/wazuh-template.json"
 setup.template.json.name: "wazuh"
 
 setup.ilm.enabled: false
 
-filebeat.modules:
-  - module: wazuh
-    alerts:
-      enabled: true
-    archives:
-      enabled: false
+# =====================================================
+# Logging
+# =====================================================
 
 logging.level: info
 

@@ -310,7 +310,7 @@
     owner: root
     group: root
     mode: "0600"
-    
+
 # -----------------------------------------------------
 # Add Filebeat username to keystore
 # -----------------------------------------------------
@@ -402,6 +402,45 @@
     - /etc/filebeat/certs/filebeat-key.pem
     - /etc/filebeat/certs/root-ca.pem
 
+# =====================================================
+# Deploy Wazuh Filebeat Module
+# =====================================================
+
+- name: Ensure Filebeat modules directory exists
+  ansible.builtin.file:
+    path: /etc/filebeat/modules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+
+- name: Deploy Wazuh Filebeat module configuration
+  ansible.builtin.copy:
+    dest: /etc/filebeat/modules.d/wazuh.yml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      - module: wazuh
+        alerts:
+          enabled: true
+          var.paths:
+            - /var/ossec/logs/alerts/alerts.json
+        archives:
+          enabled: false
+  notify: Restart filebeat
+
+# =====================================================
+# Load Wazuh Filebeat ingest pipelines
+# =====================================================
+
+- name: Load Wazuh Filebeat ingest pipelines
+  ansible.builtin.command: >
+    filebeat setup --pipelines --modules wazuh
+  register: filebeat_pipeline_setup
+  changed_when: false
+  when: wazuh_manager_enabled | bool
 
 # =====================================================
 # Ensure dashboard API config directory exists
