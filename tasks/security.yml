@@ -48,6 +48,10 @@
 # Push Security Configuration (IMPORTANT)
 # =====================================================
 
+# =====================================================
+# Apply OpenSearch Security Configuration
+# =====================================================
+
 - name: Apply OpenSearch security configuration
   ansible.builtin.command: >
     /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
@@ -59,10 +63,11 @@
   environment:
     OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
     JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: security_apply
+  changed_when: "'Done with success' in security_apply.stdout"
   when:
     - wazuh_tls_enabled | bool
     - wazuh_indexer_enabled | bool
-
 
 # =====================================================
 # Restart Indexer
