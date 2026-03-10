@@ -11,6 +11,17 @@ http.port: {{ wazuh_indexer_port }}
 path.data: {{ wazuh_indexer_data_dir }}
 path.logs: {{ wazuh_log_dir }}
 
+bootstrap.memory_lock: true
+
+# =====================================================
+# Node roles
+# =====================================================
+
+node.roles:
+  - master
+  - data
+  - ingest
+
 # =====================================================
 # Discovery / Cluster Mode
 # =====================================================
@@ -34,11 +45,13 @@ cluster.initial_master_nodes: {{ wazuh_cluster_initial_masters }}
 
 plugins.security.disabled: false
 
+# HTTP layer TLS
 plugins.security.ssl.http.enabled: true
 plugins.security.ssl.http.pemcert_filepath: {{ wazuh_tls_cert_file }}
 plugins.security.ssl.http.pemkey_filepath: {{ wazuh_tls_key_file }}
 plugins.security.ssl.http.pemtrustedcas_filepath: {{ wazuh_tls_ca_file }}
 
+# Transport layer TLS
 plugins.security.ssl.transport.enabled: true
 plugins.security.ssl.transport.pemcert_filepath: {{ wazuh_tls_cert_file }}
 plugins.security.ssl.transport.pemkey_filepath: {{ wazuh_tls_key_file }}
@@ -47,20 +60,38 @@ plugins.security.ssl.transport.pemtrustedcas_filepath: {{ wazuh_tls_ca_file }}
 plugins.security.ssl.transport.enforce_hostname_verification: false
 plugins.security.ssl.transport.resolve_hostname: false
 
+# Allow automatic security index initialization
 plugins.security.allow_default_init_securityindex: true
 
+# Admin certificate DN
 plugins.security.authcz.admin_dn:
   - "{{ wazuh_admin_dn }}"
 
+# Node certificate DN
 plugins.security.nodes_dn:
   - "CN={{ wazuh_indexer_node_name }}"
 
 {% else %}
 
+# =====================================================
 # Disable security plugin completely (LAB / Non-TLS mode)
+# =====================================================
 
 plugins.security.disabled: true
 plugins.security.ssl.http.enabled: false
 plugins.security.ssl.transport.enabled: false
 
 {% endif %}
+
+# =====================================================
+# Performance tuning
+# =====================================================
+
+action.auto_create_index: true
+cluster.routing.allocation.disk.threshold_enabled: true
+
+# =====================================================
+# Compatibility
+# =====================================================
+
+compatibility.override_main_response_version: true

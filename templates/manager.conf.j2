@@ -7,26 +7,47 @@
     <logall>no</logall>
     <logall_json>no</logall_json>
     <email_notification>no</email_notification>
-    <smtp_server>localhost</smtp_server>
-    <email_from>wazuh@localhost</email_from>
-    <email_to>admin@localhost</email_to>
-    <email_maxperhour>12</email_maxperhour>
+
+    <rotate_interval>1d</rotate_interval>
+    <max_output_size>20M</max_output_size>
+
+    <agents_disconnection_time>10m</agents_disconnection_time>
+    <agents_disconnection_alert_time>0</agents_disconnection_alert_time>
+
+    <white_list>127.0.0.1</white_list>
+
   </global>
 
 
   <!-- ================= ALERT SETTINGS ================= -->
   <alerts>
-    <log_alert_level>1</log_alert_level>
+    <log_alert_level>3</log_alert_level>
     <email_alert_level>12</email_alert_level>
   </alerts>
 
 
-  <!-- ================= REMOTE AGENT COMMUNICATION ================= -->
+  <!-- ================= INTERNAL LOGGING ================= -->
+  <logging>
+    <log_format>plain,json</log_format>
+  </logging>
+
+
+  <!-- ================= AGENT COMMUNICATION ================= -->
   <remote>
     <connection>secure</connection>
     <port>{{ wazuh_agent_port }}</port>
     <protocol>tcp</protocol>
+
+    <local_ip>0.0.0.0</local_ip>
+    <ipv6>no</ipv6>
+
     <queue_size>131072</queue_size>
+    <rids_closing_time>5m</rids_closing_time>
+    <connection_overtake_time>600</connection_overtake_time>
+
+    <agents>
+      <allow_higher_versions>no</allow_higher_versions>
+    </agents>
   </remote>
 
 
@@ -34,16 +55,41 @@
   <auth>
     <disabled>no</disabled>
     <port>{{ wazuh_enrollment_port }}</port>
+
     <use_source_ip>yes</use_source_ip>
     <purge>yes</purge>
     <use_password>no</use_password>
+
+    <ssl_verify_host>no</ssl_verify_host>
+
+    <force>
+      <enabled>yes</enabled>
+      <key_mismatch>yes</key_mismatch>
+      <after_registration_time>1h</after_registration_time>
+    </force>
   </auth>
+
+
+  <!-- ================= LABELS ================= -->
+  <labels>
+    <label key="environment">production</label>
+    <label key="deployment">ansible</label>
+    <label key="component">wazuh-manager</label>
+    <label key="team">security</label>
+    <label key="region">ap-south-1</label>
+  </labels>
 
 
   <!-- ================= ROOTCHECK ================= -->
   <rootcheck>
     <disabled>no</disabled>
-    <check_unixaudit>yes</check_unixaudit>
+    <frequency>43200</frequency>
+
+    <skip_nfs>yes</skip_nfs>
+
+    <rootkit_files>etc/shared/default/rootkit_files.txt</rootkit_files>
+    <rootkit_trojans>etc/shared/default/rootkit_trojans.txt</rootkit_trojans>
+
     <check_files>yes</check_files>
     <check_trojans>yes</check_trojans>
     <check_dev>yes</check_dev>
@@ -51,20 +97,83 @@
     <check_pids>yes</check_pids>
     <check_ports>yes</check_ports>
     <check_if>yes</check_if>
+    <check_unixaudit>yes</check_unixaudit>
   </rootcheck>
 
 
-  <!-- ================= SYSCHECK ================= -->
+  <!-- ================= SYSTEM INVENTORY ================= -->
+  <wodle name="syscollector">
+    <disabled>no</disabled>
+    <interval>1h</interval>
+    <scan_on_start>yes</scan_on_start>
+
+    <hardware>yes</hardware>
+    <os>yes</os>
+    <network>yes</network>
+    <packages>yes</packages>
+    <ports all="no">yes</ports>
+    <processes>yes</processes>
+
+    <synchronization>
+      <max_eps>10</max_eps>
+    </synchronization>
+  </wodle>
+
+
+  <!-- ================= SCA ================= -->
+  <sca>
+    <enabled>yes</enabled>
+    <scan_on_start>yes</scan_on_start>
+    <interval>12h</interval>
+
+    <skip_nfs>yes</skip_nfs>
+
+    <policies>
+      <policy>etc/shared/default/cis_debian_linux_rcl.txt</policy>
+    </policies>
+  </sca>
+
+
+  <!-- ================= VULNERABILITY DETECTION ================= -->
+  <vulnerability-detector>
+    <enabled>yes</enabled>
+    <interval>5m</interval>
+    <run_on_start>yes</run_on_start>
+  </vulnerability-detector>
+
+
+  <!-- ================= COMPLIANCE REPORTS ================= -->
+  <reports>
+    <title>Security alerts report</title>
+    <level>7</level>
+    <email_to>security@example.com</email_to>
+    <showlogs>yes</showlogs>
+  </reports>
+
+
+  <!-- ================= FILE INTEGRITY MONITORING ================= -->
   <syscheck>
     <disabled>no</disabled>
     <frequency>43200</frequency>
     <scan_on_start>yes</scan_on_start>
-    <directories check_all="yes">/etc,/usr/bin,/usr/sbin,/bin,/sbin,/boot</directories>
+
+    <directories check_all="yes" realtime="yes">/etc</directories>
+    <directories check_all="yes" realtime="yes">/usr/bin</directories>
+    <directories check_all="yes" realtime="yes">/usr/sbin</directories>
+    <directories check_all="yes" realtime="yes">/bin</directories>
+    <directories check_all="yes" realtime="yes">/sbin</directories>
+    <directories check_all="yes" realtime="yes">/boot</directories>
+
+    <skip_nfs>yes</skip_nfs>
+    <skip_dev>yes</skip_dev>
+    <skip_proc>yes</skip_proc>
+    <skip_sys>yes</skip_sys>
+
+    <max_eps>100</max_eps>
   </syscheck>
 
 
   <!-- ================= LOG COLLECTION ================= -->
-
   <localfile>
     <log_format>syslog</log_format>
     <location>/var/log/syslog</location>
@@ -75,48 +184,87 @@
     <location>/var/log/auth.log</location>
   </localfile>
 
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/kern.log</location>
+  </localfile>
+
+
+  <!-- ================= ACTIVE RESPONSE ================= -->
+  <command>
+    <name>firewall-drop</name>
+    <executable>firewall-drop</executable>
+    <timeout_allowed>yes</timeout_allowed>
+  </command>
+
+  <active-response>
+    <command>firewall-drop</command>
+    <location>local</location>
+    <level>10</level>
+    <timeout>600</timeout>
+  </active-response>
+
 
   <!-- ================= RULESET ================= -->
   <ruleset>
     <decoder_dir>ruleset/decoders</decoder_dir>
     <rule_dir>ruleset/rules</rule_dir>
+
     <rule_exclude>0215-policy_rules.xml</rule_exclude>
+
+    <decoder_dir>etc/decoders</decoder_dir>
+    <rule_dir>etc/rules</rule_dir>
   </ruleset>
 
 
   <!-- ================= INDEXER INTEGRATION ================= -->
-  <!-- As per Wazuh documentation -->
-
   <indexer>
     <enabled>yes</enabled>
 
     <hosts>
-      <host>https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}</host>
+      <host>{{ wazuh_protocol }}://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}</host>
     </hosts>
 
+    <username>{{ wazuh_indexer_username }}</username>
+    <password>{{ wazuh_indexer_password }}</password>
+
+    {% if wazuh_tls_enabled | bool %}
     <ssl>
       <certificate_authorities>
-        <ca>/etc/filebeat/certs/root-ca.pem</ca>
+        <ca>{{ wazuh_tls_ca_file }}</ca>
       </certificate_authorities>
-
-      <certificate>/etc/filebeat/certs/filebeat.pem</certificate>
-      <key>/etc/filebeat/certs/filebeat-key.pem</key>
+      <verify_host>no</verify_host>
     </ssl>
-
+    {% endif %}
   </indexer>
 
 
+  {% if wazuh_slack_enabled | bool %}
+  <!-- ================= SLACK ALERT INTEGRATION ================= -->
+  <integration>
+    <name>slack</name>
+    <hook_url>{{ wazuh_slack_webhook }}</hook_url>
+    <level>{{ wazuh_slack_level }}</level>
+    <alert_format>json</alert_format>
+    <max_log>1024</max_log>
+  </integration>
+  {% endif %}
+
+
   {% if wazuh_deployment_mode != "single" %}
-
   <!-- ================= CLUSTER CONFIGURATION ================= -->
-  <!-- Only used for multi-node deployment -->
-
   <cluster>
+
     <name>{{ wazuh_cluster_name }}</name>
+
     <node_name>{{ inventory_hostname }}</node_name>
+
     <node_type>master</node_type>
+
     <key>{{ wazuh_cluster_key }}</key>
+
     <port>{{ wazuh_cluster_port }}</port>
+
     <bind_addr>0.0.0.0</bind_addr>
 
     <nodes>
@@ -127,8 +275,8 @@
 
     <hidden>no</hidden>
     <disabled>no</disabled>
-  </cluster>
 
+  </cluster>
   {% endif %}
 
 </ossec_config>

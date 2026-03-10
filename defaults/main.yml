@@ -120,3 +120,7 @@ wazuh_log_retention_days: 30
 # =====================================================
 wazuh_node_dn: "CN={{ wazuh_indexer_node_name }}"
 wazuh_admin_dn: "CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"
+
+wazuh_slack_enabled: false
+wazuh_slack_webhook: ""
+wazuh_slack_level: 10
