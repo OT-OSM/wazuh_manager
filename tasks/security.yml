@@ -1,59 +1,46 @@
----
-
 # =====================================================
-# Wait for Indexer Port
+# Wait for OpenSearch cluster readiness (NOT just port)
 # =====================================================
 
-- name: Wait for Wazuh Indexer to start
-  ansible.builtin.wait_for:
-    host: "{{ wazuh_runtime_host }}"
-    port: "{{ wazuh_indexer_port }}"
-    timeout: 300
-  when:
-    - wazuh_indexer_enabled | bool
-
-
-# =====================================================
-# Check Security Initialization
-# =====================================================
-
-- name: Check if security already initialized
-  ansible.builtin.uri:
-    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}"
+- name: Wait for OpenSearch cluster health
+  uri:
+    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}/_cluster/health"
     method: GET
-    validate_certs: no
-    status_code: [200,401,503]
-  register: security_status
+    user: "{{ wazuh_admin_user }}"
+    password: "{{ wazuh_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    return_content: true
+  register: cluster_health
+  retries: 30
+  delay: 5
+  until: "'green' in cluster_health.content or 'yellow' in cluster_health.content"
+  when: wazuh_indexer_enabled | bool
+
+
+# =====================================================
+# Check if security index exists
+# =====================================================
+
+- name: Check if security index exists
+  uri:
+    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}/.opendistro_security"
+    method: GET
+    user: "{{ wazuh_admin_user }}"
+    password: "{{ wazuh_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+  register: security_index
   failed_when: false
-  when:
-    - wazuh_indexer_enabled | bool
+  when: wazuh_indexer_enabled | bool
 
 
 # =====================================================
-# Initialize Security Index
-# =====================================================
-
-- name: Initialize Wazuh Indexer security
-  ansible.builtin.command: >
-    /usr/share/wazuh-indexer/bin/indexer-security-init.sh
-  register: security_init
-  changed_when: "'Security Admin v' in security_init.stdout"
-  when:
-    - wazuh_tls_enabled | bool
-    - wazuh_indexer_enabled | bool
-    - security_status.status == 503
-
-
-# =====================================================
-# Push Security Configuration (IMPORTANT)
-# =====================================================
-
-# =====================================================
-# Apply OpenSearch Security Configuration
+# Apply security ONLY if needed
 # =====================================================
 
 - name: Apply OpenSearch security configuration
-  ansible.builtin.command: >
+  command: >
     /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
     -cd /etc/wazuh-indexer/opensearch-security
     -key {{ wazuh_tls_admin_key_file }}
@@ -68,29 +55,16 @@
   when:
     - wazuh_tls_enabled | bool
     - wazuh_indexer_enabled | bool
+    - security_index.status != 200
+
 
 # =====================================================
-# Restart Indexer
+# Restart ONLY if changed
 # =====================================================
 
-- name: Restart wazuh-indexer after security config
-  ansible.builtin.service:
+- name: Restart wazuh-indexer if security changed
+  service:
     name: wazuh-indexer
     state: restarted
   when:
-    - wazuh_tls_enabled | bool
-    - wazuh_indexer_enabled | bool
-
-
-# =====================================================
-# Wait Again After Restart
-# =====================================================
-
-- name: Wait for Wazuh Indexer after restart
-  ansible.builtin.wait_for:
-    host: "{{ wazuh_runtime_host }}"
-    port: "{{ wazuh_indexer_port }}"
-    timeout: 300
-  when:
-    - wazuh_tls_enabled | bool
-    - wazuh_indexer_enabled | bool
+    - security_apply.changed
