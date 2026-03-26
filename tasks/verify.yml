@@ -7,12 +7,11 @@
     url: "https://{{ wazuh_runtime_host }}:{{ wazuh_api_port }}"
     method: GET
     validate_certs: no
+    status_code: [200, 401]
   register: wazuh_api
-  retries: 30
-  delay: 10
-  until: wazuh_api.status == 200
-  failed_when: false
-
+  retries: 10
+  delay: 30
+  until: wazuh_api.status in [200, 401]
 
 # =====================================================
 # Check Wazuh Indexer health 
