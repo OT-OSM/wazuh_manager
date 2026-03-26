@@ -1,22 +1,13 @@
 # =====================================================
-# Wait for OpenSearch cluster readiness (NOT just port)
+# Wait for OpenSearch port (NOT health)
 # =====================================================
 
-- name: Wait for OpenSearch cluster health
-  uri:
-    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}/_cluster/health"
-    method: GET
-    user: "{{ wazuh_admin_user }}"
-    password: "{{ wazuh_admin_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    return_content: true
-  register: cluster_health
-  retries: 30
-  delay: 5
-  until: "'green' in cluster_health.content or 'yellow' in cluster_health.content"
+- name: Wait for OpenSearch port
+  wait_for:
+    host: "{{ wazuh_runtime_host }}"
+    port: "{{ wazuh_indexer_port }}"
+    timeout: 60
   when: wazuh_indexer_enabled | bool
-
 
 # =====================================================
 # Check if security index exists
@@ -68,3 +59,23 @@
     state: restarted
   when:
     - security_apply.changed
+
+
+# =====================================================
+# Wait for OpenSearch cluster readiness (NOT just port)
+# =====================================================
+
+- name: Wait for OpenSearch cluster health
+  uri:
+    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}/_cluster/health"
+    method: GET
+    user: "{{ wazuh_admin_user }}"
+    password: "{{ wazuh_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    return_content: true
+  register: cluster_health
+  retries: 30
+  delay: 5
+  until: "'green' in cluster_health.content or 'yellow' in cluster_health.content"
+  when: wazuh_indexer_enabled | bool
