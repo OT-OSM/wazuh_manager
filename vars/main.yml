@@ -1,29 +1,43 @@
+# SPDX-License-Identifier: MIT-0
 ---
-# vars file for wazuh
+# =====================================================
+# Repository Configuration
+# =====================================================
 
-KibanaBinaryPath: /usr/share/kibana
-KibanaServerHost: 0.0.0.0
-KibanaServerPort: 443
-KibanaURLPlugin: https://packages.wazuh.com/4.x/ui/kibana/wazuh_kibana-
-KibanaPluginPath: "{{ KibanaBinaryPath }}/bin/kibana-plugin"
+wazuh_repo_gpg_key_url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
 
-ESPluginPath: /usr/share/elasticsearch/plugins
-ESSecurityPath: "{{ ESPluginPath }}/opendistro_security/securityconfig"
-ElasticsearchUsername: kibanaserver
-ElasticsearchPassword: kibanaserver
-ESPort: 9200
+wazuh_repo_url_debian: "deb https://packages.wazuh.com/4.x/apt/ stable main"
 
-WazuhVersion: 4.3.4
+wazuh_repo_url_rhel: "https://packages.wazuh.com/4.x/yum/"
 
-ESVersion: 7.10.2
+# =====================================================
+# Derived Runtime Values (DO NOT OVERRIDE)
+# =====================================================
 
-FileBeatSourceUrl: "{{ FileBeatBaseUrl }}wazuh-filebeat-0.1.tar.gz"
-FilebeatModulePath: /usr/share/filebeat/module
+# Determine protocol based on TLS flag
+wazuh_protocol: "{{ 'https' if wazuh_tls_enabled | bool else 'http' }}"
 
-WazuhKeyUrl: https://packages.wazuh.com/key/GPG-KEY-WAZUH
-WazuhRepoUrl: deb https://packages.wazuh.com/4.x/apt/ stable main
+# Determine runtime host dynamically
+# If bind address is specific IP → use it
+# If 0.0.0.0 → use actual default interface IP
+wazuh_runtime_host: >-
+  {{
+    wazuh_bind_address
+    if wazuh_bind_address not in ['0.0.0.0', '::']
+    else ansible_default_ipv4.address
+  }}
 
-EnableSlack: false
-SlackWebhook:
+# Indexer URL (used in health checks & integrations)
+# For single node, always use localhost
+wazuh_indexer_url: >-
+  {{
+    wazuh_protocol + '://127.0.0.1:' + (wazuh_indexer_port | string)
+    if wazuh_deployment_mode == 'single'
+    else wazuh_protocol + '://' + wazuh_runtime_host + ':' + (wazuh_indexer_port | string)
+  }}
 
-CertificateScriptPath: /opt/
+# Dashboard URL (future health checks)
+wazuh_dashboard_url: "{{ wazuh_protocol }}://{{ wazuh_runtime_host }}:{{ wazuh_dashboard_port }}"
+
+# API URL
+wazuh_api_url: "{{ wazuh_protocol }}://{{ wazuh_runtime_host }}:{{ wazuh_api_port }}"

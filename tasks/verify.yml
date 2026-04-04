@@ -1,0 +1,25 @@
+- name: Wait for Wazuh API
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_runtime_host }}"
+    port: "{{ wazuh_api_port }}"
+    timeout: 120
+
+- name: Check Wazuh Indexer health
+  ansible.builtin.uri:
+    url: "https://{{ wazuh_runtime_host }}:{{ wazuh_indexer_port }}"
+    method: GET
+    user: "{{ wazuh_admin_user }}"
+    password: "{{ wazuh_admin_password }}"
+    force_basic_auth: yes
+    validate_certs: no
+    status_code: [200, 401]
+  register: indexer_health
+  retries: 30
+  delay: 5
+  until: indexer_health.status == 200 or indexer_health.status == 401
+  when: wazuh_indexer_enabled | bool
+
+- name: Display indexer health result
+  ansible.builtin.debug:
+    msg: "Indexer responded with status {{ indexer_health.status }}"
+  when: wazuh_indexer_enabled | bool

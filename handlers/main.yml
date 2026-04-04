@@ -1,29 +1,21 @@
----
-# handlers file for wazuh
-- name: WazuhServiceStartEnableAndReload
-  systemd:
+- name: Restart wazuh-manager
+  ansible.builtin.systemd:
     name: wazuh-manager
-    daemon_reload: true
-    enabled: true
-    state: started
+    state: restarted
 
-- name: ElasticsearchServiceStartEnableAndReload
-  systemd:
-    name: elasticsearch
-    daemon_reload: true
-    enabled: true
-    state: started
+- name: Restart wazuh-indexer
+  ansible.builtin.systemd:
+    name: wazuh-indexer
+    state: restarted
 
-- name: FilebeatServiceStartEnableAndReload
-  systemd:
-    name: filebeat
-    daemon_reload: true
-    enabled: true
-    state: started
+- name: Restart wazuh-dashboard
+  ansible.builtin.systemd:
+    name: wazuh-dashboard
+    state: restarted
 
-- name: KibanaServiceStartEnableAndReload
-  systemd:
-    name: kibana
-    daemon_reload: true
-    enabled: true
-    state: started
+- name: Run security init
+  ansible.builtin.command: /usr/share/wazuh-indexer/bin/indexer-security-init.sh
+  environment:
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  notify: Restart wazuh-indexer

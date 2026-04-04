@@ -1,34 +1,99 @@
----
-# defaults file for wazuh
+# =====================================================
+# DEPLOYMENT MODE
+# =====================================================
+wazuh_deployment_mode: "single"
 
-ConfigureElasticserach:
- - {Source: "elasticsearch.yml.j2", destination: "{{ EsConfigPath }}/elasticsearch.yml"}
- - {Source: "roles.yml.j2", destination: "{{ ESSecurityPath }}/roles.yml"}
- - {Source: "roles_mapping.yml.j2", destination: "{{ ESSecurityPath }}/roles_mapping.yml"}
- - {Source: "internal_users.yml.j2", destination: "{{ ESSecurityPath }}/internal_users.yml"}
+# =====================================================
+# VERSION
+# =====================================================
+wazuh_version: "4.7.0"
 
-ConfigureFilebeat:
- - {Source: "filebeat.yml.j2", destination: "{{ FilebeatConfigPath }}/filebeat.yml"}
- - {Source: "wazuh-template.json.j2", destination: "{{ FilebeatConfigPath }}/wazuh-template.json"}
+# =====================================================
+# COMPONENTS
+# =====================================================
+wazuh_manager_enabled: true
+wazuh_indexer_enabled: true
+wazuh_dashboard_enabled: true
 
-EsConfigPath: /etc/elasticsearch
-RootUser: root
-EsUser: elasticsearch
-EsCertificatePath: /etc/elasticsearch/certs
-EsPathData: /var/lib/elasticsearch
-EsPathLog: /var/log/elasticsearch
+# =====================================================
+# USER / GROUP
+# =====================================================
+wazuh_user: "wazuh"
+wazuh_group: "wazuh"
+wazuh_indexer_user: "wazuh-indexer"
 
-FileBeatBaseUrl: https://packages.wazuh.com/4.x/filebeat/
-FilebeatConfigPath: /etc/filebeat
-FileBeatCertificatePath: /etc/filebeat/certs
+# =====================================================
+# PATHS
+# =====================================================
+wazuh_manager_config_file: "/var/ossec/etc/ossec.conf"
+wazuh_indexer_config_file: "/etc/wazuh-indexer/opensearch.yml"
+wazuh_dashboard_config_file: "/etc/wazuh-dashboard/opensearch_dashboards.yml"
 
-KibanaConfigPath: /etc/kibana
-KibanaUser: kibana
-KibanaCertificatePath: /etc/kibana/certs
+wazuh_indexer_jvm_file: "/etc/wazuh-indexer/jvm.options"
+wazuh_logrotate_file: "/etc/logrotate.d/wazuh"
 
-WazuhConfigPath: /var/ossec/etc/ossec.conf
+wazuh_data_dir: "/var/ossec"
+wazuh_indexer_data_dir: "/var/lib/wazuh-indexer"
+wazuh_log_dir: "/var/log/wazuh"
 
-UserName: admin
-UserPassword: admin
+# =====================================================
+# NETWORK
+# =====================================================
+wazuh_bind_address: "0.0.0.0"
+wazuh_agent_port: 1514
+wazuh_api_port: 55000
+wazuh_dashboard_port: 5601
+wazuh_indexer_port: 9200
+wazuh_cluster_port: 1516
+wazuh_enrollment_port: 1515
 
-CertificatePath: "{{ CertificateScriptPath }}certs"
+# =====================================================
+# TLS
+# =====================================================
+wazuh_tls_enabled: false
+
+wazuh_indexer_cert_dir: "/etc/wazuh-indexer/certs"
+
+wazuh_tls_cert_file: "{{ wazuh_indexer_cert_dir }}/node.pem"
+wazuh_tls_key_file: "{{ wazuh_indexer_cert_dir }}/node-key.pem"
+wazuh_tls_ca_file: "{{ wazuh_indexer_cert_dir }}/root-ca.pem"
+
+wazuh_tls_admin_cert_file: "{{ wazuh_indexer_cert_dir }}/admin.pem"
+wazuh_tls_admin_key_file: "{{ wazuh_indexer_cert_dir }}/admin-key.pem"
+
+# =====================================================
+# DASHBOARD TLS
+# =====================================================
+wazuh_dashboard_ssl_enabled: false
+wazuh_dashboard_ssl_verification_mode: "none"
+wazuh_dashboard_cert_dir: "/etc/wazuh-dashboard/certs"
+wazuh_dashboard_cert_file: "{{ wazuh_dashboard_cert_dir }}/dashboard.pem"
+wazuh_dashboard_key_file: "{{ wazuh_dashboard_cert_dir }}/dashboard-key.pem"
+# =====================================================
+# AUTH
+# =====================================================
+wazuh_admin_user: ""
+wazuh_admin_password: ""
+wazuh_indexer_username: admin
+wazuh_indexer_password: Admin@123456
+
+# =====================================================
+# CLUSTER
+# =====================================================
+wazuh_cluster_name: "wazuh-cluster"
+wazuh_cluster_key: ""
+wazuh_cluster_enabled: "{{ wazuh_deployment_mode == 'single' }}"
+
+# =====================================================
+# RESOURCE LIMITS
+# =====================================================
+wazuh_limit_nofile: 65536
+wazuh_java_heap_size: "2g"
+
+# =====================================================
+# OBSERVABILITY
+# =====================================================
+wazuh_log_retention_days: 30
+
+wazuh_node_dn: ""
+wazuh_admin_dn: ""
