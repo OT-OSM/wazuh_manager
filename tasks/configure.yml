@@ -1,0 +1,499 @@
+---
+# =====================================================
+# Render Configuration Files
+# =====================================================
+
+- name: Configure Manager
+  ansible.builtin.template:
+    src: manager.conf.j2
+    dest: "{{ wazuh_manager_config_file }}"
+    owner: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    mode: "0640"
+  notify: Restart wazuh-manager
+  when: wazuh_manager_enabled | bool
+
+- name: Configure Indexer
+  ansible.builtin.template:
+    src: indexer.yml.j2
+    dest: "{{ wazuh_indexer_config_file }}"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+  notify: Restart wazuh-indexer
+  when: wazuh_indexer_enabled | bool
+
+- name: Configure Dashboard
+  ansible.builtin.template:
+    src: dashboard.yml.j2
+    dest: "{{ wazuh_dashboard_config_file }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+  notify: Restart wazuh-dashboard
+  when: wazuh_dashboard_enabled | bool
+
+# =====================================================
+# Runtime Directories
+# =====================================================
+
+- name: Create Wazuh log directory
+  ansible.builtin.file:
+    path: "{{ wazuh_log_dir }}"
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+
+- name: Create Wazuh Indexer data directory
+  ansible.builtin.file:
+    path: "{{ wazuh_indexer_data_dir }}"
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+
+- name: Ensure Wazuh log directory exists
+  ansible.builtin.file:
+    path: /var/log/wazuh
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+  when: wazuh_indexer_enabled | bool
+
+- name: Ensure manager reports directory exists
+  ansible.builtin.file:
+    path: /var/ossec/logs/reports
+    state: directory
+    owner: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    mode: "0750"
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
+# Fix Indexer Runtime Permissions
+# =====================================================
+
+- name: Ensure Wazuh log directory ownership
+  ansible.builtin.file:
+    path: /var/log/wazuh
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+  when: wazuh_indexer_enabled | bool
+
+- name: Ensure Wazuh Indexer data directory ownership
+  ansible.builtin.file:
+    path: /var/lib/wazuh-indexer
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0750"
+  when: wazuh_indexer_enabled | bool
+
+# =====================================================
+# Dashboard TLS Validation
+# =====================================================
+
+- name: Ensure dashboard cert directory exists
+  ansible.builtin.file:
+    path: "{{ wazuh_dashboard_cert_dir }}"
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0750"
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+
+- name: Check dashboard certificate exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_dashboard_cert_file }}"
+  register: dashboard_cert_stat
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+
+- name: Check dashboard key exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_dashboard_key_file }}"
+  register: dashboard_key_stat
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+
+- name: Fail if dashboard certificate missing
+  ansible.builtin.fail:
+    msg: "Dashboard SSL certificate not found at {{ wazuh_dashboard_cert_file }}"
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+    - not dashboard_cert_stat.stat.exists
+
+- name: Fail if dashboard key missing
+  ansible.builtin.fail:
+    msg: "Dashboard SSL key not found at {{ wazuh_dashboard_key_file }}"
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+    - not dashboard_key_stat.stat.exists
+
+- name: Set dashboard certificate permissions
+  ansible.builtin.file:
+    path: "{{ wazuh_dashboard_cert_file }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0644"
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+
+- name: Set dashboard key permissions
+  ansible.builtin.file:
+    path: "{{ wazuh_dashboard_key_file }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0600"
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_dashboard_ssl_enabled | bool
+
+# =====================================================
+# ACL Configuration
+# =====================================================
+
+- name: Ensure ACL package installed
+  ansible.builtin.package:
+    name: acl
+    state: present
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_tls_enabled | bool
+
+- name: Allow dashboard user to read indexer certificates
+  ansible.posix.acl:
+    path: "{{ item }}"
+    entity: wazuh-dashboard
+    etype: user
+    permissions: r
+    state: present
+  loop:
+    - "{{ wazuh_tls_admin_cert_file }}"
+    - "{{ wazuh_tls_admin_key_file }}"
+    - "{{ wazuh_tls_ca_file }}"
+  when:
+    - wazuh_dashboard_enabled | bool
+    - wazuh_tls_enabled | bool
+
+# =====================================================
+# OpenSearch Security Password Hashes
+# =====================================================
+
+- name: Generate admin password hash
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
+    -p "{{ wazuh_admin_password }}"
+  environment:
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: wazuh_admin_hash
+  changed_when: false
+  when: wazuh_indexer_enabled | bool
+
+- name: Generate dashboard password hash
+  ansible.builtin.command: >
+    /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
+    -p "{{ wazuh_dashboard_service_password }}"
+  environment:
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+    OPENSEARCH_JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  register: wazuh_dashboard_hash
+  changed_when: false
+  when: wazuh_indexer_enabled | bool
+
+# =====================================================
+# Render Security Configuration
+# =====================================================
+
+- name: Render internal users config
+  ansible.builtin.template:
+    src: internal_users.yml.j2
+    dest: /etc/wazuh-indexer/opensearch-security/internal_users.yml
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0600"
+  when: wazuh_indexer_enabled | bool
+
+- name: Render roles mapping config
+  ansible.builtin.template:
+    src: roles_mapping.yml.j2
+    dest: /etc/wazuh-indexer/opensearch-security/roles_mapping.yml
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0600"
+  when: wazuh_indexer_enabled | bool
+
+# =====================================================
+# JVM Configuration
+# =====================================================
+
+- name: Configure JVM heap
+  ansible.builtin.template:
+    src: jvm.options.j2
+    dest: "{{ wazuh_indexer_jvm_file }}"
+  notify: Restart wazuh-indexer
+
+- name: Configure logrotate
+  ansible.builtin.copy:
+    dest: "{{ wazuh_logrotate_file }}"
+    content: |
+      {{ wazuh_log_dir }}/*.log {
+        daily
+        rotate {{ wazuh_log_retention_days }}
+        compress
+        missingok
+      }
+
+# =====================================================
+# Wazuh Manager Keystore
+# =====================================================
+
+- name: Ensure wazuh keystore directory exists
+  ansible.builtin.file:
+    path: /var/ossec/etc/keystore
+    state: directory
+    owner: wazuh
+    group: wazuh
+    mode: "0750"
+  when: wazuh_manager_enabled | bool
+
+- name: Configure indexer username in wazuh keystore
+  ansible.builtin.command: >
+    /var/ossec/bin/wazuh-keystore -f indexer -k username -v "{{ wazuh_indexer_username }}"
+  when: wazuh_manager_enabled | bool
+
+- name: Configure indexer password in wazuh keystore
+  ansible.builtin.command: >
+    /var/ossec/bin/wazuh-keystore -f indexer -k password -v "{{ wazuh_indexer_password }}"
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
+# Filebeat Configuration
+# =====================================================
+
+- name: Download Wazuh alerts template
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/wazuh/wazuh/v4.14.3/extensions/elasticsearch/7.x/wazuh-template.json"
+    dest: /etc/filebeat/wazuh-template.json
+    mode: "0644"
+  when: wazuh_manager_enabled | bool
+
+- name: Configure Filebeat
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart filebeat
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
+# Filebeat Keystore
+# =====================================================
+
+- name: Ensure Filebeat data directory exists
+  ansible.builtin.file:
+    path: /var/lib/filebeat
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Filebeat keystore
+  ansible.builtin.command: filebeat keystore create
+  args:
+    creates: /var/lib/filebeat/filebeat.keystore
+
+- name: Set Filebeat keystore permissions
+  ansible.builtin.file:
+    path: /var/lib/filebeat/filebeat.keystore
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Add Filebeat username
+  ansible.builtin.shell: |
+    echo "{{ wazuh_indexer_username }}" | filebeat keystore add username --stdin --force
+  changed_when: false
+
+- name: Add Filebeat password
+  ansible.builtin.shell: |
+    echo "{{ wazuh_indexer_password }}" | filebeat keystore add password --stdin --force
+  changed_when: false
+
+# =====================================================
+# Filebeat Certificates
+# =====================================================
+
+- name: Ensure Filebeat certificate directory exists
+  ansible.builtin.file:
+    path: /etc/filebeat/certs
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy Filebeat certificate
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/{{ wazuh_manager_node_name }}.pem"
+    remote_src: true
+    dest: /etc/filebeat/certs/filebeat.pem
+    owner: root
+    group: root
+    mode: "0400"
+
+- name: Copy Filebeat key
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/{{ wazuh_manager_node_name }}-key.pem"
+    remote_src: true
+    dest: /etc/filebeat/certs/filebeat-key.pem
+    owner: root
+    group: root
+    mode: "0400"
+
+- name: Copy Root CA
+  ansible.builtin.copy:
+    src: "{{ wazuh_tls_ca_file }}"
+    remote_src: true
+    dest: /etc/filebeat/certs/root-ca.pem
+    owner: root
+    group: root
+    mode: "0400"
+
+# =====================================================
+# Filebeat Module
+# =====================================================
+
+- name: Ensure Filebeat modules directory exists
+  ansible.builtin.file:
+    path: /etc/filebeat/modules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy Wazuh Filebeat module
+  ansible.builtin.copy:
+    dest: /etc/filebeat/modules.d/wazuh.yml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      - module: wazuh
+        alerts:
+          enabled: true
+          var.paths:
+            - /var/ossec/logs/alerts/alerts.json
+        archives:
+          enabled: false
+  notify: Restart filebeat
+
+- name: Enable Wazuh module
+  ansible.builtin.command: filebeat modules enable wazuh
+  changed_when: false
+  failed_when: false
+
+# =====================================================
+# Filebeat Setup
+# =====================================================
+
+- name: Load Filebeat index template
+  ansible.builtin.command: filebeat setup --index-management
+  environment:
+    FILEBEAT_STRICT_PERMS: "false"
+  changed_when: false
+  register: filebeat_setup
+  retries: 3
+  delay: 10
+  until: filebeat_setup.rc == 0
+  when: wazuh_manager_enabled | bool
+
+- name: Load Filebeat pipelines
+  ansible.builtin.command: >
+    filebeat setup --pipelines --modules wazuh
+  environment:
+    FILEBEAT_STRICT_PERMS: "false"
+  register: filebeat_pipeline_setup
+  retries: 3
+  delay: 10
+  until: filebeat_pipeline_setup.rc == 0
+  changed_when: false
+  when: wazuh_manager_enabled | bool
+
+# =====================================================
+# Filebeat Service
+# =====================================================
+
+- name: Enable Filebeat
+  ansible.builtin.service:
+    name: filebeat
+    enabled: true
+    state: started
+
+- name: Wait for Filebeat initialization
+  ansible.builtin.pause:
+    seconds: 5
+
+# =====================================================
+# Dashboard API Configuration
+# =====================================================
+
+- name: Ensure dashboard API directory exists
+  ansible.builtin.file:
+    path: /usr/share/wazuh-dashboard/data/wazuh/config
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0755"
+  when: wazuh_dashboard_enabled | bool
+
+- name: Configure Dashboard API
+  ansible.builtin.template:
+    src: wazuh-dashboard-api.yml.j2
+    dest: /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+  when: wazuh_dashboard_enabled | bool
+
+# =====================================================
+# Final Permission Fixes
+# =====================================================
+
+- name: Ensure /var/log/wazuh ownership
+  ansible.builtin.file:
+    path: /var/log/wazuh
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    recurse: true
+  when: wazuh_indexer_enabled | bool
+
+- name: Ensure /var/lib/wazuh-indexer ownership
+  ansible.builtin.file:
+    path: /var/lib/wazuh-indexer
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    recurse: true
+  when: wazuh_indexer_enabled | bool
+
+# =====================================================
+# Flush handlers before service validation
+# =====================================================
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

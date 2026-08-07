@@ -1,0 +1,26 @@
+- name: Create wazuh group
+  ansible.builtin.group:
+    name: "{{ wazuh_group }}"
+    state: present
+
+- name: Create wazuh user
+  ansible.builtin.user:
+    name: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create required directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ wazuh_user }}"
+    group: "{{ wazuh_group }}"
+    mode: "0750"
+  loop:
+    - "{{ wazuh_base_dir }}"
+    - "{{ wazuh_config_dir }}"
+    - "{{ wazuh_data_dir }}"
+    - "{{ wazuh_indexer_data_dir }}"
+    - "{{ wazuh_log_dir }}" 

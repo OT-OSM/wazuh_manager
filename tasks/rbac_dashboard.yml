@@ -1,0 +1,100 @@
+---
+# =====================================================
+# Wazuh Dashboard RBAC
+# =====================================================
+
+# =====================================================
+# Display Dashboard RBAC users
+# =====================================================
+
+- name: Display Dashboard RBAC users
+  ansible.builtin.debug:
+    var: wazuh_api_rbac_users
+
+# =====================================================
+# Generate OpenSearch password hashes
+# =====================================================
+
+- name: Generate OpenSearch password hashes
+  ansible.builtin.command: >
+    {{ wazuh_security_hash_script }}
+    -p "{{ item.user.password }}"
+  environment:
+    JAVA_HOME: "{{ wazuh_security_java_home }}"
+    OPENSEARCH_JAVA_HOME: "{{ wazuh_security_java_home }}"
+  loop: "{{ wazuh_api_rbac_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: wazuh_dashboard_password_hashes
+  changed_when: false
+  no_log: true
+
+# =====================================================
+# Build Dashboard user map
+# =====================================================
+
+- name: Build Dashboard user map
+  ansible.builtin.set_fact:
+    wazuh_dashboard_users: >-
+      {{
+        wazuh_dashboard_users
+        | default({})
+        | combine(_dashboard_user, recursive=True)
+      }}
+  vars:
+    _backend_roles: >-
+      {{
+        (
+          wazuh_api_rbac_user_role_mappings
+          | selectattr('user', 'equalto', item.name)
+          | map(attribute='roles')
+          | first
+        ) | default([])
+      }}
+
+    _dashboard_user: >-
+      {{
+        dict([
+          (
+            item.name,
+            {
+              'hash': wazuh_dashboard_password_hashes.results[ansible_loop.index0].stdout | trim,
+              'reserved': false,
+              'backend_roles': _backend_roles,
+              'description': 'Managed by Ansible'
+            }
+          )
+        ])
+      }}
+
+  loop: "{{ wazuh_api_rbac_users }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name }}"
+
+# =====================================================
+# Display Dashboard users
+# =====================================================
+
+- name: Display Dashboard users
+  ansible.builtin.debug:
+    var: wazuh_dashboard_users
+
+# =====================================================
+# Configure OpenSearch Security
+# =====================================================
+
+- name: Configure Dashboard internal users
+  ansible.builtin.include_tasks: rbac_dashboard_internal_users.yml
+
+- name: Configure Dashboard roles
+  ansible.builtin.include_tasks: rbac_dashboard_roles.yml
+
+- name: Configure Dashboard role mappings
+  ansible.builtin.include_tasks: rbac_dashboard_role_mappings.yml
+
+- name: Apply OpenSearch Security
+  ansible.builtin.include_tasks: rbac_dashboard_apply.yml
+
+- name: Verify Dashboard RBAC
+  ansible.builtin.include_tasks: rbac_dashboard_verify.yml

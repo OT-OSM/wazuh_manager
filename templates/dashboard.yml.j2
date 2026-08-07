@@ -1,0 +1,52 @@
+# =====================================================
+# Wazuh Dashboard Configuration
+# =====================================================
+
+server.host: {{ wazuh_bind_address }}
+server.port: {{ wazuh_dashboard_port }}
+
+# =====================================================
+# OpenSearch Connection
+# =====================================================
+
+opensearch.hosts:
+  - {{ wazuh_indexer_url | quote }}
+
+# Dashboard service user
+opensearch.username: {{ wazuh_indexer_username | quote }}
+opensearch.password: {{ wazuh_indexer_password | quote }}
+
+# =====================================================
+# OpenSearch SSL Configuration
+# =====================================================
+
+{% if wazuh_tls_enabled | bool %}
+
+opensearch.ssl.verificationMode: {{ wazuh_dashboard_ssl_verification_mode | quote }}
+opensearch.ssl.certificateAuthorities:
+  - {{ wazuh_tls_ca_file | quote }}
+
+{% endif %}
+
+# Allow auth headers
+opensearch.requestHeadersAllowlist:
+  - authorization
+  - securitytenant
+
+# Dashboard → Indexer TLS (Documentation compliant)
+
+opensearch.ssl.certificate: {{ wazuh_tls_admin_cert_file | quote }}
+opensearch.ssl.key: {{ wazuh_tls_admin_key_file | quote }}
+
+# =====================================================
+# Dashboard HTTPS
+# =====================================================
+
+server.ssl.enabled: {{ wazuh_dashboard_ssl_enabled | lower }}
+
+{% if wazuh_dashboard_ssl_enabled | bool %}
+
+server.ssl.certificate: {{ wazuh_dashboard_cert_file | quote }}
+server.ssl.key: {{ wazuh_dashboard_key_file | quote }}
+
+{% endif %}

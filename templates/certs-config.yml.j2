@@ -1,0 +1,25 @@
+nodes:
+
+  # =====================================================
+  # Wazuh Indexer Nodes
+  # =====================================================
+
+  indexer:
+    - name: {{ wazuh_indexer_node_name }}
+      ip: "{{ ansible_default_ipv4.address }}"
+
+  # =====================================================
+  # Wazuh Server Nodes
+  # =====================================================
+
+  server:
+    - name: {{ wazuh_manager_node_name }}
+      ip: "{{ ansible_default_ipv4.address }}"
+
+  # =====================================================
+  # Wazuh Dashboard Nodes
+  # =====================================================
+
+  dashboard:
+    - name: {{ wazuh_dashboard_node_name }}
+      ip: "{{ ansible_default_ipv4.address }}"

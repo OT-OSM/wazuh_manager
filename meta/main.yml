@@ -1,19 +1,40 @@
----
 galaxy_info:
-  author: Varghese Kurian
-  description: Ansible role for setting up the Wazuh manager
-  company: Opstree Solutions
+  role_name: wazuh
+  namespace: ot_osm
+  author: Divya Mishra
+  description: >
+    Enterprise-grade Wazuh deployment role supporting single-node and HA-ready architecture with TLS,
+    OpenSearch (Wazuh Indexer) security initialization, JVM tuning, and production hardening.
+
+  company: OT-OSM
+
   license: MIT
 
-  min_ansible_version: 2.9
+  min_ansible_version: "2.14"
 
   platforms:
     - name: Ubuntu
       versions:
-        - bionic
-        - focal
-        - Jammy
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: EL
+      versions:
+        - "8"
+        - "9"
 
-  galaxy_tags: ["wazuh", "ansible", "automation", "opstree"]
+  galaxy_tags:
+    - wazuh
+    - siem
+    - security
+    - opensearch
+    - monitoring
+    - logging
+    - devsecops
+    - vm
+    - ha
+    - tls
 
-  dependencies: []
+  galaxy_version: "1.0.0"
+
+dependencies: []

@@ -1,0 +1,204 @@
+---
+# =====================================================
+# Wazuh API RBAC Verification
+# =====================================================
+
+- name: Verify Wazuh API authentication token
+  ansible.builtin.assert:
+    that:
+      - wazuh_api_rbac_token is defined
+      - wazuh_api_rbac_token | length > 0
+    fail_msg: "Wazuh API JWT token is missing."
+    success_msg: "Wazuh API authentication verified."
+  tags:
+    - wazuh
+    - rbac
+    - verify
+
+# =====================================================
+# Verify Users
+# =====================================================
+
+- name: Get configured Wazuh API users
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/users"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_verify_users
+  retries: 5
+  delay: 5
+  until: wazuh_verify_users.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_verify_users.status != 200
+  tags:
+    - wazuh
+    - rbac
+    - verify
+
+- name: Verify configured users exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_users
+          | map(attribute='name')
+          | difference(
+              wazuh_verify_users.json.data.affected_items
+              | map(attribute='username')
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more configured users were not created successfully."
+    success_msg: "All configured users verified."
+
+# =====================================================
+# Verify Roles
+# =====================================================
+
+- name: Get configured Wazuh API roles
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/roles"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_verify_roles
+  retries: 5
+  delay: 5
+  until: wazuh_verify_roles.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_verify_roles.status != 200
+  tags:
+    - wazuh
+    - rbac
+    - verify
+
+- name: Verify configured roles exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_roles
+          | map(attribute='name')
+          | difference(
+              wazuh_verify_roles.json.data.affected_items
+              | map(attribute='name')
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more configured roles were not created successfully."
+    success_msg: "All configured roles verified."
+
+# =====================================================
+# Verify Policies
+# =====================================================
+
+- name: Get configured Wazuh API policies
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/policies"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_verify_policies
+  retries: 5
+  delay: 5
+  until: wazuh_verify_policies.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_verify_policies.status != 200
+  tags:
+    - wazuh
+    - rbac
+    - verify
+
+- name: Verify configured policies exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_policies
+          | map(attribute='name')
+          | difference(
+              wazuh_verify_policies.json.data.affected_items
+              | map(attribute='name')
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more configured policies were not created successfully."
+    success_msg: "All configured policies verified."
+
+# =====================================================
+# Verify Rules
+# =====================================================
+
+- name: Get configured Wazuh API rules
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/rules"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_verify_rules
+  retries: 5
+  delay: 5
+  until: wazuh_verify_rules.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_verify_rules.status != 200
+  tags:
+    - wazuh
+    - rbac
+    - verify
+
+- name: Verify configured rules exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_rules
+          | map(attribute='name')
+          | difference(
+              wazuh_verify_rules.json.data.affected_items
+              | map(attribute='name')
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more configured rules were not created successfully."
+    success_msg: "All configured rules verified."
+
+# =====================================================
+# Display Verification Summary
+# =====================================================
+
+- name: Display RBAC verification summary
+  ansible.builtin.debug:
+    msg:
+      - "Users                   : {{ wazuh_verify_users.json.data.total_affected_items | default(0) }}"
+      - "Roles                   : {{ wazuh_verify_roles.json.data.total_affected_items | default(0) }}"
+      - "Policies                : {{ wazuh_verify_policies.json.data.total_affected_items | default(0) }}"
+      - "Rules                   : {{ wazuh_verify_rules.json.data.total_affected_items | default(0) }}"
+      - "Role → Policy Mappings  : {{ wazuh_api_rbac_role_policy_mappings | length }}"
+      - "Role → Rule Mappings    : {{ wazuh_api_rbac_role_rule_mappings | length }}"
+      - "User → Role Mappings    : {{ wazuh_api_rbac_user_role_mappings | length }}"
+      - "Wazuh API RBAC verification completed successfully."
+  tags:
+    - wazuh
+    - rbac
+    - verify

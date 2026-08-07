@@ -1,0 +1,207 @@
+---
+# =====================================================
+# Wazuh API RBAC Configuration
+# =====================================================
+
+- name: Skip Wazuh API RBAC configuration
+  ansible.builtin.meta: end_host
+  when: not wazuh_api_rbac_enabled | bool
+
+- name: Display Wazuh API RBAC configuration
+  ansible.builtin.debug:
+    msg:
+      - "Wazuh API RBAC Enabled      : {{ wazuh_api_rbac_enabled }}"
+      - "Users                       : {{ wazuh_api_rbac_users | length }}"
+      - "Roles                       : {{ wazuh_api_rbac_roles | length }}"
+      - "Policies                    : {{ wazuh_api_rbac_policies | length }}"
+      - "Rules                       : {{ wazuh_api_rbac_rules | length }}"
+      - "Role → Policy Mappings      : {{ wazuh_api_rbac_role_policy_mappings | length }}"
+      - "Role → Rule Mappings        : {{ wazuh_api_rbac_role_rule_mappings | length }}"
+      - "User → Role Mappings        : {{ wazuh_api_rbac_user_role_mappings | length }}"
+
+# =====================================================
+# Validate Wazuh API RBAC configuration
+# =====================================================
+
+- name: Validate Wazuh API RBAC configuration
+  ansible.builtin.assert:
+    that:
+      - wazuh_api_rbac_url is defined
+      - wazuh_api_rbac_url | length > 0
+      - wazuh_api_rbac_admin_user is defined
+      - wazuh_api_rbac_admin_user | length > 0
+      - wazuh_api_rbac_admin_password is defined
+      - wazuh_api_rbac_admin_password | length > 0
+    fail_msg: |
+      Wazuh API RBAC configuration is incomplete.
+
+      Required variables:
+
+      - wazuh_api_rbac_url
+      - wazuh_api_rbac_admin_user
+      - wazuh_api_rbac_admin_password
+
+      Please verify defaults/main.yml or inventory variables.
+    success_msg: "Wazuh API RBAC configuration validated successfully."
+  tags:
+    - wazuh
+    - rbac
+    - validation
+
+# =====================================================
+# Authenticate with Wazuh API
+# =====================================================
+
+- name: Authenticate with Wazuh API
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/user/authenticate"
+    method: POST
+    user: "{{ wazuh_api_rbac_admin_user }}"
+    password: "{{ wazuh_api_rbac_admin_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_api_auth
+  retries: 5
+  delay: 5
+  until: wazuh_api_auth.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_api_auth.status != 200
+  no_log: true
+
+- name: Store Wazuh API JWT token
+  ansible.builtin.set_fact:
+    wazuh_api_rbac_token: "{{ wazuh_api_auth.json.data.token }}"
+  no_log: true
+
+- name: Verify JWT token generated
+  ansible.builtin.assert:
+    that:
+      - wazuh_api_rbac_token is defined
+      - wazuh_api_rbac_token | length > 0
+    fail_msg: "Failed to obtain Wazuh API JWT token."
+    success_msg: "JWT token generated successfully."
+
+- name: Display authentication status
+  ansible.builtin.debug:
+    msg:
+      - "Successfully authenticated with Wazuh API."
+      - "JWT token generated."
+
+# =====================================================
+# Configure RBAC Policies
+# =====================================================
+
+- name: Configure Wazuh API Policies
+  ansible.builtin.include_tasks: rbac_create_object.yml
+  vars:
+    object_type: policies
+    object_endpoint: policies
+    object_key: policy
+    object_list: "{{ wazuh_api_rbac_policies }}"
+  when: wazuh_api_rbac_policies | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - policies
+
+# =====================================================
+# Configure RBAC Rules
+# =====================================================
+
+- name: Configure Wazuh API Rules
+  ansible.builtin.include_tasks: rbac_create_object.yml
+  vars:
+    object_type: rules
+    object_endpoint: rules
+    object_key: rule
+    object_list: "{{ wazuh_api_rbac_rules }}"
+  when: wazuh_api_rbac_rules | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - rules
+
+# =====================================================
+# Configure RBAC Roles
+# =====================================================
+
+- name: Configure Wazuh API Roles
+  ansible.builtin.include_tasks: rbac_create_object.yml
+  vars:
+    object_type: roles
+    object_endpoint: roles
+    object_key: role
+    object_list: "{{ wazuh_api_rbac_roles }}"
+  when: wazuh_api_rbac_roles | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - roles
+
+# =====================================================
+# Configure RBAC Users
+# =====================================================
+
+- name: Configure Wazuh API Users
+  ansible.builtin.include_tasks: rbac_create_object.yml
+  vars:
+    object_type: users
+    object_endpoint: users
+    object_key: user
+    object_list: "{{ wazuh_api_rbac_users }}"
+  when: wazuh_api_rbac_users | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - users
+
+# =====================================================
+# Configure Role → Policy Mappings
+# =====================================================
+
+- name: Configure Wazuh API Role Policy Mappings
+  ansible.builtin.include_tasks: rbac_api_role_policy_mappings.yml
+  when: wazuh_api_rbac_role_policy_mappings | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - role-policy
+
+# =====================================================
+# Configure Role → Rule Mappings
+# =====================================================
+
+- name: Configure Wazuh API Role Rule Mappings
+  ansible.builtin.include_tasks: rbac_api_role_rule_mappings.yml
+  when: wazuh_api_rbac_role_rule_mappings | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - role-rule
+
+# =====================================================
+# Configure User → Role Mappings
+# =====================================================
+
+- name: Configure Wazuh API User Role Mappings
+  ansible.builtin.include_tasks: rbac_api_user_role_mappings.yml
+  when: wazuh_api_rbac_user_role_mappings | length > 0
+  tags:
+    - wazuh
+    - rbac
+    - user-role
+
+# =====================================================
+# Verify RBAC Configuration
+# =====================================================
+
+- name: Verify Wazuh API RBAC configuration
+  ansible.builtin.include_tasks: rbac_api_verify.yml
+  when: wazuh_api_rbac_verify | bool
+  tags:
+    - wazuh
+    - rbac
+    - verify

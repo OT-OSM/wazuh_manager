@@ -1,0 +1,132 @@
+---
+# =====================================================
+# Wazuh Dashboard RBAC - Apply OpenSearch Security
+# =====================================================
+
+# =====================================================
+# Verify securityadmin.sh exists
+# =====================================================
+
+- name: Check OpenSearch Security admin script
+  ansible.builtin.stat:
+    path: "{{ wazuh_security_admin_script }}"
+  register: wazuh_security_admin
+
+- name: Verify OpenSearch Security admin script
+  ansible.builtin.assert:
+    that:
+      - wazuh_security_admin.stat.exists
+    fail_msg: "OpenSearch Security admin script not found."
+    success_msg: "OpenSearch Security admin script found."
+
+# =====================================================
+# Verify required certificates
+# =====================================================
+
+- name: Check OpenSearch admin certificate
+  ansible.builtin.stat:
+    path: "{{ wazuh_tls_admin_cert_file }}"
+  register: wazuh_admin_cert
+
+- name: Check OpenSearch admin key
+  ansible.builtin.stat:
+    path: "{{ wazuh_tls_admin_key_file }}"
+  register: wazuh_admin_key
+
+- name: Check OpenSearch root CA
+  ansible.builtin.stat:
+    path: "{{ wazuh_tls_ca_file }}"
+  register: wazuh_root_ca
+
+- name: Verify OpenSearch Security certificates
+  ansible.builtin.assert:
+    that:
+      - wazuh_admin_cert.stat.exists
+      - wazuh_admin_key.stat.exists
+      - wazuh_root_ca.stat.exists
+    fail_msg: "Required OpenSearch Security certificates are missing."
+    success_msg: "Required OpenSearch Security certificates verified."
+
+# =====================================================
+# Apply OpenSearch Security configuration
+# =====================================================
+
+- name: Apply OpenSearch Security configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ wazuh_security_admin_script }}"
+      - "-cd"
+      - "{{ wazuh_opensearch_security_dir }}"
+      - "-cacert"
+      - "{{ wazuh_tls_ca_file }}"
+      - "-cert"
+      - "{{ wazuh_tls_admin_cert_file }}"
+      - "-key"
+      - "{{ wazuh_tls_admin_key_file }}"
+      - "-h"
+      - "{{ wazuh_security_admin_host }}"
+      - "-icl"
+      - "-nhnv"
+  environment:
+    JAVA_HOME: "{{ wazuh_security_java_home }}"
+    OPENSEARCH_JAVA_HOME: "{{ wazuh_security_java_home }}"
+  register: wazuh_security_apply
+
+  failed_when:
+    - wazuh_security_apply.rc != 0
+
+  changed_when: >-
+    (
+      'updated' in (wazuh_security_apply.stdout | lower)
+    )
+    or
+    (
+      'created' in (wazuh_security_apply.stdout | lower)
+    )
+    or
+    (
+      'applied' in (wazuh_security_apply.stdout | lower)
+    )
+
+# =====================================================
+# Display apply output
+# =====================================================
+
+- name: Display OpenSearch Security apply output
+  ansible.builtin.debug:
+    var: wazuh_security_apply.stdout_lines
+
+# =====================================================
+# Restart Wazuh Dashboard (Optional)
+# =====================================================
+
+- name: Restart Wazuh Dashboard
+  ansible.builtin.service:
+    name: wazuh-dashboard
+    state: restarted
+  when:
+    - wazuh_dashboard_restart | bool
+
+# =====================================================
+# Wait for Dashboard
+# =====================================================
+
+- name: Wait for Wazuh Dashboard
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_security_admin_host }}"
+    port: "{{ wazuh_dashboard_port }}"
+    timeout: 120
+  when:
+    - wazuh_dashboard_restart | bool
+
+# =====================================================
+# Display completion status
+# =====================================================
+
+- name: Display Dashboard RBAC apply status
+  ansible.builtin.debug:
+    msg:
+      - "OpenSearch Security configuration applied successfully."
+      - "Security directory : {{ wazuh_opensearch_security_dir }}"
+      - "Security admin host : {{ wazuh_security_admin_host }}"
+      - "Dashboard restarted : {{ wazuh_dashboard_restart }}"

@@ -1,0 +1,91 @@
+---
+# =====================================================
+# Wazuh Dashboard RBAC - Internal Users
+# =====================================================
+
+# =====================================================
+# Display Dashboard users
+# =====================================================
+
+- name: Display Dashboard users
+  ansible.builtin.debug:
+    var: wazuh_dashboard_users
+
+# =====================================================
+# Read existing internal_users.yml
+# =====================================================
+
+- name: Read existing OpenSearch internal users
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_internal_users_file }}"
+  register: wazuh_dashboard_internal_users_file
+
+# =====================================================
+# Parse existing internal_users.yml
+# =====================================================
+
+- name: Parse existing OpenSearch internal users
+  ansible.builtin.set_fact:
+    wazuh_dashboard_internal_users_existing: >-
+      {{
+        wazuh_dashboard_internal_users_file.content
+        | b64decode
+        | from_yaml
+      }}
+
+# =====================================================
+# Display existing internal users
+# =====================================================
+
+- name: Display existing OpenSearch internal users
+  ansible.builtin.debug:
+    var: wazuh_dashboard_internal_users_existing
+
+# =====================================================
+# Merge Dashboard users
+# =====================================================
+
+- name: Merge Dashboard users into internal users
+  ansible.builtin.set_fact:
+    wazuh_dashboard_internal_users_final: >-
+      {{
+        wazuh_dashboard_internal_users_existing
+        | combine(
+            wazuh_dashboard_users,
+            recursive=True
+          )
+      }}
+
+# =====================================================
+# Display merged internal users
+# =====================================================
+
+- name: Display merged OpenSearch internal users
+  ansible.builtin.debug:
+    var: wazuh_dashboard_internal_users_final
+
+# =====================================================
+# Update internal_users.yml
+# =====================================================
+
+- name: Update OpenSearch internal_users.yml
+  ansible.builtin.copy:
+    dest: "{{ wazuh_opensearch_internal_users_file }}"
+    content: "{{ wazuh_dashboard_internal_users_final | to_nice_yaml(indent=2) }}"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0600"
+    backup: true
+
+# =====================================================
+# Verify internal_users.yml updated
+# =====================================================
+
+- name: Read updated OpenSearch internal users
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_internal_users_file }}"
+  register: wazuh_dashboard_internal_users_verify
+
+- name: Display updated OpenSearch internal users
+  ansible.builtin.debug:
+    msg: "{{ wazuh_dashboard_internal_users_verify.content | b64decode | from_yaml }}"

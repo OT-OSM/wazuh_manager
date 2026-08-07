@@ -1,34 +1,299 @@
----
-# defaults file for wazuh
+# =====================================================
+# DEPLOYMENT MODE
+# =====================================================
+wazuh_deployment_mode: "single"
 
-ConfigureElasticserach:
- - {Source: "elasticsearch.yml.j2", destination: "{{ EsConfigPath }}/elasticsearch.yml"}
- - {Source: "roles.yml.j2", destination: "{{ ESSecurityPath }}/roles.yml"}
- - {Source: "roles_mapping.yml.j2", destination: "{{ ESSecurityPath }}/roles_mapping.yml"}
- - {Source: "internal_users.yml.j2", destination: "{{ ESSecurityPath }}/internal_users.yml"}
+# =====================================================
+# VERSION
+# =====================================================
+wazuh_version: "4.14"
 
-ConfigureFilebeat:
- - {Source: "filebeat.yml.j2", destination: "{{ FilebeatConfigPath }}/filebeat.yml"}
- - {Source: "wazuh-template.json.j2", destination: "{{ FilebeatConfigPath }}/wazuh-template.json"}
+# =====================================================
+# COMPONENTS
+# =====================================================
+wazuh_manager_enabled: true
+wazuh_indexer_enabled: true
+wazuh_dashboard_enabled: true
 
-EsConfigPath: /etc/elasticsearch
-RootUser: root
-EsUser: elasticsearch
-EsCertificatePath: /etc/elasticsearch/certs
-EsPathData: /var/lib/elasticsearch
-EsPathLog: /var/log/elasticsearch
+# =====================================================
+# USER / GROUP
+# =====================================================
+wazuh_user: "wazuh"
+wazuh_group: "wazuh"
+wazuh_indexer_user: "wazuh-indexer"
 
-FileBeatBaseUrl: https://packages.wazuh.com/4.x/filebeat/
-FilebeatConfigPath: /etc/filebeat
-FileBeatCertificatePath: /etc/filebeat/certs
+# =====================================================
+# PATHS
+# =====================================================
+wazuh_manager_config_file: "/var/ossec/etc/ossec.conf"
+wazuh_indexer_config_file: "/etc/wazuh-indexer/opensearch.yml"
+wazuh_dashboard_config_file: "/etc/wazuh-dashboard/opensearch_dashboards.yml"
 
-KibanaConfigPath: /etc/kibana
-KibanaUser: kibana
-KibanaCertificatePath: /etc/kibana/certs
+wazuh_indexer_jvm_file: "/etc/wazuh-indexer/jvm.options"
+wazuh_logrotate_file: "/etc/logrotate.d/wazuh"
 
-WazuhConfigPath: /var/ossec/etc/ossec.conf
+wazuh_data_dir: "/var/ossec"
+wazuh_indexer_data_dir: "/var/lib/wazuh-indexer"
+wazuh_log_dir: "/var/log/wazuh"
 
-UserName: admin
-UserPassword: admin
+# =====================================================
+# NETWORK
+# =====================================================
+wazuh_bind_address: "0.0.0.0"
+wazuh_runtime_host: "{{ ansible_default_ipv4.address }}"
+wazuh_agent_port: 1514
+wazuh_api_port: 55000
+wazuh_dashboard_port: 5601
+wazuh_indexer_port: 9200
+wazuh_cluster_port: 1516
+wazuh_enrollment_port: 1515
 
-CertificatePath: "{{ CertificateScriptPath }}certs"
+# =====================================================
+# TLS CONFIGURATION
+# =====================================================
+wazuh_tls_enabled: true
+
+wazuh_indexer_cert_dir: "/etc/wazuh-indexer/certs"
+
+wazuh_tls_cert_file: "{{ wazuh_indexer_cert_dir }}/indexer.pem"
+wazuh_tls_key_file: "{{ wazuh_indexer_cert_dir }}/indexer-key.pem"
+wazuh_tls_ca_file: "{{ wazuh_indexer_cert_dir }}/root-ca.pem"
+
+wazuh_tls_admin_cert_file: "{{ wazuh_indexer_cert_dir }}/admin.pem"
+wazuh_tls_admin_key_file: "{{ wazuh_indexer_cert_dir }}/admin-key.pem"
+
+# =====================================================
+# CERTIFICATE GENERATION
+# =====================================================
+wazuh_cert_tool_dir: "/etc/wazuh-certs"
+wazuh_cert_config: "{{ wazuh_cert_tool_dir }}/config.yml"
+wazuh_cert_script: "{{ wazuh_cert_tool_dir }}/wazuh-certs-tool.sh"
+wazuh_certificates_dir: "{{ wazuh_cert_tool_dir }}/wazuh-certificates"
+
+# Node names used for cert generation
+wazuh_indexer_node_name: "node-1"
+wazuh_manager_node_name: "wazuh-1"
+wazuh_dashboard_node_name: "dashboard"
+
+# =====================================================
+# DASHBOARD TLS
+# =====================================================
+wazuh_dashboard_ssl_enabled: true
+wazuh_dashboard_ssl_verification_mode: "certificate"
+
+wazuh_dashboard_cert_dir: "/etc/wazuh-dashboard/certs"
+wazuh_dashboard_cert_file: "{{ wazuh_dashboard_cert_dir }}/dashboard.pem"
+wazuh_dashboard_key_file: "{{ wazuh_dashboard_cert_dir }}/dashboard-key.pem"
+
+# =====================================================
+# AUTH
+# =====================================================
+wazuh_admin_user: "admin"
+wazuh_admin_password: "Admin@123456"
+
+wazuh_indexer_username: "admin"
+wazuh_indexer_password: "Admin@123456"
+
+wazuh_dashboard_service_user: "kibanaserver"
+wazuh_dashboard_service_password: "Dash@123"
+
+# =====================================================
+# CLUSTER
+# =====================================================
+wazuh_cluster_name: "wazuh-cluster"
+wazuh_cluster_key: ""
+wazuh_cluster_enabled: "{{ wazuh_deployment_mode != 'single' }}"
+
+# =====================================================
+# RESOURCE LIMITS
+# =====================================================
+wazuh_limit_nofile: 65536
+wazuh_java_heap_size: "2g"
+
+# =====================================================
+# OBSERVABILITY
+# =====================================================
+wazuh_log_retention_days: 30
+
+# =====================================================
+# TLS DN CONFIGURATION
+# =====================================================
+wazuh_node_dn: "CN={{ wazuh_indexer_node_name }}"
+wazuh_admin_dn: "CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"
+
+wazuh_slack_enabled: false
+wazuh_slack_webhook: ""
+wazuh_slack_level: 10
+
+# =====================================================
+# WAZUH API RBAC
+# =====================================================
+
+wazuh_api_rbac_enabled: false
+
+# API Authentication
+wazuh_api_rbac_url: "{{ wazuh_api_url }}"
+wazuh_dashboard_api_user: "wazuh-wui"
+wazuh_dashboard_api_password: "wazuh-wui"
+
+wazuh_api_rbac_admin_user: "{{ wazuh_dashboard_api_user }}"
+wazuh_api_rbac_admin_password: "{{ wazuh_dashboard_api_password }}"
+wazuh_api_rbac_validate_certs: false
+
+# RBAC Objects
+
+# Users
+# Example:
+# wazuh_api_rbac_users:
+#   - name: "john"
+#     user:
+#       password: "ChangeMe123!"
+#       allow_run_as: false
+wazuh_api_rbac_users: []
+
+# Roles
+# Example:
+# wazuh_api_rbac_roles:
+#   - name: "SOC Admin"
+#     role:
+#       description: "SOC Administrator Role"
+wazuh_api_rbac_roles: []
+
+# Policies
+#
+# Example:
+#
+# wazuh_api_rbac_policies:
+#   - name: "Agent Read Policy"
+#     policy:
+#       actions:
+#         - "agent:read"
+#       resources:
+#         - "agent:id:*"
+#       effect: "allow"
+
+wazuh_api_rbac_policies: []
+
+# Rules
+
+# wazuh_api_rbac_rules:
+#   - name: "Admin Users Rule"
+#     rule:
+#       MATCH:
+#         definition: "admin"
+wazuh_api_rbac_rules: []
+
+# =====================================================
+# RBAC Mappings
+# =====================================================
+
+# Policy → Role mappings
+#
+# Example:
+#
+# wazuh_api_rbac_role_policy_mappings:
+#   - role: "SOC Admin"
+#     policies:
+#       - "Agent Read Policy"
+#       - "Group Read Policy"
+
+wazuh_api_rbac_role_policy_mappings: []
+
+# Rule → Role mappings
+#
+# Example:
+#
+# wazuh_api_rbac_role_rule_mappings:
+#   - role: "SOC Admin"
+#     rules:
+#       - "Admin Users Rule"
+
+wazuh_api_rbac_role_rule_mappings: []
+
+# User → Role mappings
+#
+# Example:
+#
+# wazuh_api_rbac_user_role_mappings:
+#   - user: "john"
+#     roles:
+#       - "SOC Admin"
+
+wazuh_api_rbac_user_role_mappings: []
+
+# Verify after deployment
+wazuh_api_rbac_verify: true
+
+# =====================================================
+# WAZUH DASHBOARD RBAC
+# =====================================================
+
+wazuh_dashboard_rbac_enabled: false
+
+wazuh_opensearch_security_dir: "/etc/wazuh-indexer/opensearch-security"
+
+wazuh_opensearch_internal_users_file: "{{ wazuh_opensearch_security_dir }}/internal_users.yml"
+wazuh_opensearch_roles_file: "{{ wazuh_opensearch_security_dir }}/roles.yml"
+wazuh_opensearch_roles_mapping_file: "{{ wazuh_opensearch_security_dir }}/roles_mapping.yml"
+
+wazuh_security_java_home: "/usr/share/wazuh-indexer/jdk"
+wazuh_security_hash_script: "/usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh"
+
+# Apply OpenSearch Security
+wazuh_security_admin_script: "/usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh"
+wazuh_security_admin_host: "127.0.0.1"
+
+wazuh_dashboard_restart: false
+
+# =====================================================
+# Dashboard Default Role Permissions
+# =====================================================
+
+wazuh_dashboard_default_role:
+
+  cluster_permissions:
+    - "cluster_composite_ops"
+
+  index_permissions:
+
+    # OpenSearch Dashboards / Kibana Saved Objects
+    - index_patterns:
+        - ".kibana"
+        - ".kibana_*"
+        - ".opensearch_dashboards"
+        - ".opensearch_dashboards_*"
+      allowed_actions:
+        - "read"
+        - "delete"
+        - "manage"
+        - "index"
+
+    # Dashboard system indices
+    - index_patterns:
+        - ".tasks"
+        - ".management-beats"
+        - "*:.tasks"
+        - "*:.management-beats"
+      allowed_actions:
+        - "indices_all"
+
+    # Wazuh indices
+    - index_patterns:
+        - "wazuh-*"
+      allowed_actions:
+        - "read"
+        - "delete"
+        - "manage"
+        - "index"
+
+    # Generic read access
+    - index_patterns:
+        - "*"
+      allowed_actions:
+        - "read"
+
+  tenant_permissions:
+    - tenant_patterns:
+        - "*"
+      allowed_actions:
+        - "kibana_all_read"

@@ -1,0 +1,151 @@
+---
+# =====================================================
+# Wazuh Dashboard RBAC - Roles
+# =====================================================
+
+# =====================================================
+# Display Dashboard roles
+# =====================================================
+
+- name: Display Dashboard RBAC roles
+  ansible.builtin.debug:
+    var: wazuh_api_rbac_roles
+
+# =====================================================
+# Read existing roles.yml
+# =====================================================
+
+- name: Read existing OpenSearch roles
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_roles_file }}"
+  register: wazuh_dashboard_roles_file
+
+# =====================================================
+# Parse existing roles.yml
+# =====================================================
+
+- name: Parse existing OpenSearch roles
+  ansible.builtin.set_fact:
+    wazuh_dashboard_roles_existing: >-
+      {{
+        wazuh_dashboard_roles_file.content
+        | b64decode
+        | from_yaml
+      }}
+
+# =====================================================
+# Display existing roles
+# =====================================================
+
+- name: Display existing OpenSearch roles
+  ansible.builtin.debug:
+    var: wazuh_dashboard_roles_existing
+
+# =====================================================
+# Build Dashboard role map
+# =====================================================
+
+- name: Build Dashboard role map
+  ansible.builtin.set_fact:
+    wazuh_dashboard_roles: >-
+      {{
+        wazuh_dashboard_roles | default({})
+        | combine(
+            _dashboard_role,
+            recursive=True
+          )
+      }}
+  vars:
+    _dashboard_role: >-
+      {{
+        dict([
+          (
+            item.name,
+            {
+              'reserved': false,
+
+              'cluster_permissions': (
+                item.dashboard.cluster_permissions
+                | default(
+                    wazuh_dashboard_default_role.cluster_permissions
+                  )
+              ),
+
+              'index_permissions': (
+                item.dashboard.index_permissions
+                | default(
+                    wazuh_dashboard_default_role.index_permissions
+                  )
+              ),
+
+              'tenant_permissions': (
+                item.dashboard.tenant_permissions
+                | default(
+                    wazuh_dashboard_default_role.tenant_permissions
+                  )
+              )
+            }
+          )
+        ])
+      }}
+
+  loop: "{{ wazuh_api_rbac_roles }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# =====================================================
+# Display generated Dashboard roles
+# =====================================================
+
+- name: Display generated Dashboard roles
+  ansible.builtin.debug:
+    var: wazuh_dashboard_roles
+
+# =====================================================
+# Merge Dashboard roles
+# =====================================================
+
+- name: Merge Dashboard roles
+  ansible.builtin.set_fact:
+    wazuh_dashboard_roles_final: >-
+      {{
+        wazuh_dashboard_roles_existing
+        | combine(
+            wazuh_dashboard_roles,
+            recursive=True
+          )
+      }}
+
+# =====================================================
+# Display merged roles
+# =====================================================
+
+- name: Display merged OpenSearch roles
+  ansible.builtin.debug:
+    var: wazuh_dashboard_roles_final
+
+# =====================================================
+# Update roles.yml
+# =====================================================
+
+- name: Update OpenSearch roles.yml
+  ansible.builtin.copy:
+    dest: "{{ wazuh_opensearch_roles_file }}"
+    content: "{{ wazuh_dashboard_roles_final | to_nice_yaml(indent=2) }}"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+    backup: true
+
+# =====================================================
+# Verify roles.yml
+# =====================================================
+
+- name: Read updated OpenSearch roles
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_roles_file }}"
+  register: wazuh_dashboard_roles_verify
+
+- name: Display updated OpenSearch roles
+  ansible.builtin.debug:
+    msg: "{{ wazuh_dashboard_roles_verify.content | b64decode | from_yaml }}"

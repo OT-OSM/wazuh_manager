@@ -1,20 +1,30 @@
----
-# tasks file for wazuh
 
-- name: Including playbook for Wazuh OS configurations
-  include_tasks: Pre-requisites.yml
+- name: Validate configuration
+  ansible.builtin.include_tasks: validate.yml
 
-- name: Including playbook for Wazuh installing & configuring
-  include_tasks: Wazuh_server.yml
+- name: Install Wazuh components
+  ansible.builtin.include_tasks: install.yml
 
-- name: Including playbook for removing old certificates and generating new one
-  include_tasks: Certificate.yml
+- name: Generate Wazuh certificates
+  ansible.builtin.include_tasks: certs.yml
+  when: wazuh_tls_enabled | bool
 
-- name: Including playbook to install and configure elasticsearch and opendistro
-  include_tasks: ElasticserachAndOpendistro.yml
+- name: Configure components
+  ansible.builtin.include_tasks: configure.yml
 
-- name: Including playbook to install and configure Filebeat
-  include_tasks: Filebeat.yml
+- name: Initialize security index
+  ansible.builtin.include_tasks: security.yml
 
-- name: Including playbook to install and configure Kibana
-  include_tasks: Kibana.yml
+- name: Configure services
+  ansible.builtin.include_tasks: service.yml
+
+- name: Configure Wazuh API RBAC
+  ansible.builtin.include_tasks: rbac_api.yml
+  when: wazuh_api_rbac_enabled | bool
+
+- name: Configure Wazuh Dashboard RBAC
+  ansible.builtin.include_tasks: rbac_dashboard.yml
+  when: wazuh_dashboard_rbac_enabled | bool
+
+- name: Perform health checks
+  ansible.builtin.include_tasks: verify.yml
