@@ -1,0 +1,314 @@
+---
+# =====================================================
+# Initialize RBAC caches
+# =====================================================
+
+- name: Initialize RBAC caches
+  ansible.builtin.set_fact:
+    wazuh_rbac_object_ids: "{{ wazuh_rbac_object_ids | default({}) }}"
+    wazuh_rbac_objects: "{{ wazuh_rbac_objects | default({}) }}"
+
+# =====================================================
+# Display Wazuh API objects
+# =====================================================
+
+- name: Display Wazuh API {{ object_type }}
+  ansible.builtin.debug:
+    var: object_list
+
+# =====================================================
+# Get existing objects
+# =====================================================
+
+- name: Get existing Wazuh API {{ object_type }}
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/{{ object_endpoint }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_existing_objects
+  retries: 5
+  delay: 5
+  until: wazuh_existing_objects.status == 200
+  changed_when: false
+  failed_when: wazuh_existing_objects.status != 200
+
+# =====================================================
+# Display existing objects
+# =====================================================
+
+- name: Display existing Wazuh API {{ object_type }}
+  ansible.builtin.debug:
+    var: wazuh_existing_objects.json
+
+# =====================================================
+# Determine object name attribute
+# =====================================================
+
+- name: Determine object name attribute
+  ansible.builtin.set_fact:
+    wazuh_object_name_key: >-
+      {{
+        'username'
+        if object_type == 'users'
+        else
+        'name'
+      }}
+
+# =====================================================
+# Extract existing object names
+# =====================================================
+
+- name: Extract existing {{ object_type }} names
+  ansible.builtin.set_fact:
+    wazuh_existing_object_names: >-
+      {{
+        wazuh_existing_objects.json.data.affected_items
+        | map(attribute=wazuh_object_name_key)
+        | list
+      }}
+
+# =====================================================
+# Extract existing object IDs
+# =====================================================
+
+- name: Extract existing {{ object_type }} IDs
+  ansible.builtin.set_fact:
+    wazuh_existing_object_ids: >-
+      {{
+        dict(
+          wazuh_existing_objects.json.data.affected_items
+          | map(attribute=wazuh_object_name_key)
+          | zip(
+              wazuh_existing_objects.json.data.affected_items
+              | map(attribute='id')
+            )
+        )
+      }}
+
+# =====================================================
+# Display extracted names
+# =====================================================
+
+- name: Display extracted {{ object_type }} names
+  ansible.builtin.debug:
+    var: wazuh_existing_object_names
+
+# =====================================================
+# Display extracted IDs
+# =====================================================
+
+- name: Display extracted {{ object_type }} IDs
+  ansible.builtin.debug:
+    var: wazuh_existing_object_ids
+
+# =====================================================
+# Determine missing objects
+# =====================================================
+
+- name: Determine missing {{ object_type }}
+  ansible.builtin.set_fact:
+    wazuh_missing_objects: >-
+      {{
+        object_list
+        | rejectattr('name', 'in', wazuh_existing_object_names)
+        | list
+      }}
+
+# =====================================================
+# Display missing objects
+# =====================================================
+
+- name: Display missing {{ object_type }}
+  ansible.builtin.debug:
+    var: wazuh_missing_objects
+
+# =====================================================
+# Debug payload
+# =====================================================
+
+- name: Show {{ object_type }} payload
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        (
+          {"name": item.name}
+          if object_type == "roles"
+          else
+          (
+            {
+              "username": item.name,
+              "password": item.user.password
+            }
+          )
+          if object_type == "users"
+          else
+          (
+            {"name": item.name}
+            | combine({"policy": item.policy})
+          )
+          if object_type == "policies"
+          else
+          (
+            {"name": item.name}
+            | combine({"rule": item.rule})
+          )
+        )
+      }}
+  loop: "{{ wazuh_missing_objects }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: wazuh_missing_objects | length > 0
+
+# =====================================================
+# Create missing objects
+# =====================================================
+
+- name: Create missing Wazuh API {{ object_type }}
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/{{ object_endpoint }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    body_format: json
+    body: >-
+      {{
+        (
+          {"name": item.name}
+          if object_type == "roles"
+          else
+          (
+            {
+              "username": item.name,
+              "password": item.user.password
+            }
+          )
+          if object_type == "users"
+          else
+          (
+            {
+              "name": item.name,
+              "policy": item.policy
+            }
+          )
+          if object_type == "policies"
+          else
+          (
+            {
+              "name": item.name,
+              "rule": item.rule
+            }
+          )
+        )
+      }}
+    return_content: true
+    status_code: 200
+  loop: "{{ wazuh_missing_objects }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: wazuh_created_objects
+  retries: 5
+  delay: 5
+  until: wazuh_created_objects.status == 200
+  changed_when: wazuh_missing_objects | length > 0
+  failed_when: wazuh_created_objects.status != 200
+  when: wazuh_missing_objects | length > 0
+
+# =====================================================
+# Refresh objects
+# =====================================================
+
+- name: Refresh Wazuh API {{ object_type }}
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/{{ object_endpoint }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_existing_objects_refresh
+  retries: 5
+  delay: 5
+  until: wazuh_existing_objects_refresh.status == 200
+  changed_when: false
+  failed_when: wazuh_existing_objects_refresh.status != 200
+  when: wazuh_missing_objects | length > 0
+
+# =====================================================
+# Use refreshed objects
+# =====================================================
+
+- name: Use refreshed {{ object_type }} objects
+  ansible.builtin.set_fact:
+    wazuh_existing_objects: "{{ wazuh_existing_objects_refresh }}"
+  when: wazuh_missing_objects | length > 0
+
+# =====================================================
+# Rebuild object ID map
+# =====================================================
+
+- name: Rebuild {{ object_type }} ID map
+  ansible.builtin.set_fact:
+    wazuh_rbac_object_ids: >-
+      {{
+        (wazuh_rbac_object_ids | default({}))
+        | combine(
+            {
+              object_type:
+                dict(
+                  wazuh_existing_objects.json.data.affected_items
+                  | map(attribute=wazuh_object_name_key)
+                  | zip(
+                      wazuh_existing_objects.json.data.affected_items
+                      | map(attribute='id')
+                    )
+                )
+            },
+            recursive=True
+          )
+      }}
+
+# =====================================================
+# Rebuild object cache
+# =====================================================
+
+- name: Rebuild {{ object_type }} object cache
+  ansible.builtin.set_fact:
+    wazuh_rbac_objects: >-
+      {{
+        (wazuh_rbac_objects | default({}))
+        | combine(
+            {
+              object_type:
+                dict(
+                  wazuh_existing_objects.json.data.affected_items
+                  | map(attribute=wazuh_object_name_key)
+                  | zip(
+                      wazuh_existing_objects.json.data.affected_items
+                    )
+                )
+            },
+            recursive=True
+          )
+      }}
+
+# =====================================================
+# Display rebuilt object cache
+# =====================================================
+
+- name: Display rebuilt {{ object_type }} object cache
+  ansible.builtin.debug:
+    var: wazuh_rbac_objects[object_type]
+
+# =====================================================
+# Display rebuilt object IDs
+# =====================================================
+
+- name: Display rebuilt {{ object_type }} IDs
+  ansible.builtin.debug:
+    var: wazuh_rbac_object_ids[object_type]

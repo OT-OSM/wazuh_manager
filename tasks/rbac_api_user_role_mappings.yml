@@ -1,0 +1,97 @@
+---
+# =====================================================
+# Wazuh API RBAC - User Role Mappings
+# =====================================================
+
+- name: Display Wazuh API RBAC user role mappings
+  ansible.builtin.debug:
+    var: wazuh_api_rbac_user_role_mappings
+
+# =====================================================
+# Validate required ID maps
+# =====================================================
+
+- name: Verify RBAC object IDs are available
+  ansible.builtin.assert:
+    that:
+      - wazuh_rbac_object_ids.users is defined
+      - wazuh_rbac_object_ids.roles is defined
+    fail_msg: >
+      RBAC object IDs not available.
+      Execute object provisioning before user-role mappings.
+  tags:
+    - wazuh
+    - rbac
+    - user-role
+
+# =====================================================
+# Configure User → Role mappings
+# =====================================================
+
+- name: Link roles to users
+  ansible.builtin.uri:
+    url: >-
+      {{ wazuh_api_rbac_url }}/security/users/{{
+      wazuh_rbac_object_ids.users[item.user]
+      }}/roles?role_ids={{
+      item.roles
+      | map('extract', wazuh_rbac_object_ids.roles)
+      | join(',')
+      }}
+    method: POST
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  loop: "{{ wazuh_api_rbac_user_role_mappings }}"
+  loop_control:
+    label: "{{ item.user }}"
+  register: wazuh_user_role_mapping
+  retries: 5
+  delay: 5
+  until: wazuh_user_role_mapping is succeeded
+  changed_when: true
+  failed_when:
+    - wazuh_user_role_mapping.status | default(0) != 200
+  tags:
+    - wazuh
+    - rbac
+    - user-role
+
+# =====================================================
+# Verify user-role mappings
+# =====================================================
+
+- name: Get updated Wazuh API users
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/users"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_updated_users
+  retries: 5
+  delay: 5
+  until: wazuh_updated_users.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_updated_users.status != 200
+  tags:
+    - wazuh
+    - rbac
+    - user-role
+
+# =====================================================
+# Display updated user-role mappings
+# =====================================================
+
+- name: Display updated user-role mappings
+  ansible.builtin.debug:
+    var: wazuh_updated_users.json
+  tags:
+    - wazuh
+    - rbac
+    - user-role

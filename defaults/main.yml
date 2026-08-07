@@ -124,3 +124,176 @@ wazuh_admin_dn: "CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"
 wazuh_slack_enabled: false
 wazuh_slack_webhook: ""
 wazuh_slack_level: 10
+
+# =====================================================
+# WAZUH API RBAC
+# =====================================================
+
+wazuh_api_rbac_enabled: false
+
+# API Authentication
+wazuh_api_rbac_url: "{{ wazuh_api_url }}"
+wazuh_dashboard_api_user: "wazuh-wui"
+wazuh_dashboard_api_password: "wazuh-wui"
+
+wazuh_api_rbac_admin_user: "{{ wazuh_dashboard_api_user }}"
+wazuh_api_rbac_admin_password: "{{ wazuh_dashboard_api_password }}"
+wazuh_api_rbac_validate_certs: false
+
+# RBAC Objects
+
+# Users
+# Example:
+# wazuh_api_rbac_users:
+#   - name: "john"
+#     user:
+#       password: "ChangeMe123!"
+#       allow_run_as: false
+wazuh_api_rbac_users: []
+
+# Roles
+# Example:
+# wazuh_api_rbac_roles:
+#   - name: "SOC Admin"
+#     role:
+#       description: "SOC Administrator Role"
+wazuh_api_rbac_roles: []
+
+# Policies
+#
+# Example:
+#
+# wazuh_api_rbac_policies:
+#   - name: "Agent Read Policy"
+#     policy:
+#       actions:
+#         - "agent:read"
+#       resources:
+#         - "agent:id:*"
+#       effect: "allow"
+
+wazuh_api_rbac_policies: []
+
+# Rules
+
+# wazuh_api_rbac_rules:
+#   - name: "Admin Users Rule"
+#     rule:
+#       MATCH:
+#         definition: "admin"
+wazuh_api_rbac_rules: []
+
+# =====================================================
+# RBAC Mappings
+# =====================================================
+
+# Policy → Role mappings
+#
+# Example:
+#
+# wazuh_api_rbac_role_policy_mappings:
+#   - role: "SOC Admin"
+#     policies:
+#       - "Agent Read Policy"
+#       - "Group Read Policy"
+
+wazuh_api_rbac_role_policy_mappings: []
+
+# Rule → Role mappings
+#
+# Example:
+#
+# wazuh_api_rbac_role_rule_mappings:
+#   - role: "SOC Admin"
+#     rules:
+#       - "Admin Users Rule"
+
+wazuh_api_rbac_role_rule_mappings: []
+
+# User → Role mappings
+#
+# Example:
+#
+# wazuh_api_rbac_user_role_mappings:
+#   - user: "john"
+#     roles:
+#       - "SOC Admin"
+
+wazuh_api_rbac_user_role_mappings: []
+
+# Verify after deployment
+wazuh_api_rbac_verify: true
+
+# =====================================================
+# WAZUH DASHBOARD RBAC
+# =====================================================
+
+wazuh_dashboard_rbac_enabled: false
+
+wazuh_opensearch_security_dir: "/etc/wazuh-indexer/opensearch-security"
+
+wazuh_opensearch_internal_users_file: "{{ wazuh_opensearch_security_dir }}/internal_users.yml"
+wazuh_opensearch_roles_file: "{{ wazuh_opensearch_security_dir }}/roles.yml"
+wazuh_opensearch_roles_mapping_file: "{{ wazuh_opensearch_security_dir }}/roles_mapping.yml"
+
+wazuh_security_java_home: "/usr/share/wazuh-indexer/jdk"
+wazuh_security_hash_script: "/usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh"
+
+# Apply OpenSearch Security
+wazuh_security_admin_script: "/usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh"
+wazuh_security_admin_host: "127.0.0.1"
+
+wazuh_dashboard_restart: false
+
+# =====================================================
+# Dashboard Default Role Permissions
+# =====================================================
+
+wazuh_dashboard_default_role:
+
+  cluster_permissions:
+    - "cluster_composite_ops"
+
+  index_permissions:
+
+    # OpenSearch Dashboards / Kibana Saved Objects
+    - index_patterns:
+        - ".kibana"
+        - ".kibana_*"
+        - ".opensearch_dashboards"
+        - ".opensearch_dashboards_*"
+      allowed_actions:
+        - "read"
+        - "delete"
+        - "manage"
+        - "index"
+
+    # Dashboard system indices
+    - index_patterns:
+        - ".tasks"
+        - ".management-beats"
+        - "*:.tasks"
+        - "*:.management-beats"
+      allowed_actions:
+        - "indices_all"
+
+    # Wazuh indices
+    - index_patterns:
+        - "wazuh-*"
+      allowed_actions:
+        - "read"
+        - "delete"
+        - "manage"
+        - "index"
+
+    # Generic read access
+    - index_patterns:
+        - "*"
+      allowed_actions:
+        - "read"
+
+  tenant_permissions:
+    - tenant_patterns:
+        - "*"
+      allowed_actions:
+        - "kibana_all_read"

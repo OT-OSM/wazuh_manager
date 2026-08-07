@@ -1,0 +1,132 @@
+---
+# =====================================================
+# Wazuh Dashboard RBAC Verification
+# =====================================================
+
+# =====================================================
+# Read internal_users.yml
+# =====================================================
+
+- name: Read OpenSearch internal users
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_internal_users_file }}"
+  register: wazuh_verify_internal_users
+
+- name: Parse OpenSearch internal users
+  ansible.builtin.set_fact:
+    wazuh_verify_internal_users_data: >-
+      {{
+        wazuh_verify_internal_users.content
+        | b64decode
+        | from_yaml
+      }}
+
+# =====================================================
+# Verify Dashboard users
+# =====================================================
+
+- name: Verify Dashboard users exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_users
+          | map(attribute='name')
+          | difference(
+              wazuh_verify_internal_users_data.keys()
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more Dashboard users were not configured."
+    success_msg: "All Dashboard users verified."
+
+# =====================================================
+# Read roles.yml
+# =====================================================
+
+- name: Read OpenSearch roles
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_roles_file }}"
+  register: wazuh_verify_roles
+
+- name: Parse OpenSearch roles
+  ansible.builtin.set_fact:
+    wazuh_verify_roles_data: >-
+      {{
+        wazuh_verify_roles.content
+        | b64decode
+        | from_yaml
+      }}
+
+# =====================================================
+# Verify Dashboard roles
+# =====================================================
+
+- name: Verify Dashboard roles exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_roles
+          | map(attribute='name')
+          | difference(
+              wazuh_verify_roles_data.keys()
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more Dashboard roles were not configured."
+    success_msg: "All Dashboard roles verified."
+
+# =====================================================
+# Read roles_mapping.yml
+# =====================================================
+
+- name: Read OpenSearch role mappings
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_roles_mapping_file }}"
+  register: wazuh_verify_role_mappings
+
+- name: Parse OpenSearch role mappings
+  ansible.builtin.set_fact:
+    wazuh_verify_role_mappings_data: >-
+      {{
+        wazuh_verify_role_mappings.content
+        | b64decode
+        | from_yaml
+      }}
+
+# =====================================================
+# Verify Dashboard role mappings
+# =====================================================
+
+- name: Verify Dashboard role mappings exist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          wazuh_api_rbac_user_role_mappings
+          | map(attribute='roles')
+          | flatten
+          | difference(
+              wazuh_verify_role_mappings_data.keys()
+              | list
+            )
+          | length
+        ) == 0
+    fail_msg: "One or more Dashboard role mappings were not configured."
+    success_msg: "All Dashboard role mappings verified."
+
+# =====================================================
+# Display Verification Summary
+# =====================================================
+
+- name: Display Dashboard RBAC verification summary
+  ansible.builtin.debug:
+    msg:
+      - "Dashboard Users          : {{ wazuh_api_rbac_users | length }}"
+      - "Dashboard Roles          : {{ wazuh_api_rbac_roles | length }}"
+      - "Dashboard Role Mappings  : {{ wazuh_api_rbac_user_role_mappings | length }}"
+      - "Security Directory       : {{ wazuh_opensearch_security_dir }}"
+      - "Dashboard RBAC verification completed successfully."

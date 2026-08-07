@@ -1,0 +1,145 @@
+---
+# =====================================================
+# Wazuh Dashboard RBAC - Role Mappings
+# =====================================================
+
+# =====================================================
+# Display Dashboard role mappings
+# =====================================================
+
+- name: Display Dashboard role mappings
+  ansible.builtin.debug:
+    var: wazuh_api_rbac_user_role_mappings
+
+# =====================================================
+# Read existing roles_mapping.yml
+# =====================================================
+
+- name: Read existing OpenSearch roles mapping
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_roles_mapping_file }}"
+  register: wazuh_dashboard_roles_mapping_file
+
+# =====================================================
+# Parse existing roles_mapping.yml
+# =====================================================
+
+- name: Parse existing OpenSearch roles mapping
+  ansible.builtin.set_fact:
+    wazuh_dashboard_roles_mapping_existing: >-
+      {{
+        wazuh_dashboard_roles_mapping_file.content
+        | b64decode
+        | from_yaml
+      }}
+
+# =====================================================
+# Display existing role mappings
+# =====================================================
+
+- name: Display existing OpenSearch role mappings
+  ansible.builtin.debug:
+    var: wazuh_dashboard_roles_mapping_existing
+
+# =====================================================
+# Initialize Dashboard role mappings
+# =====================================================
+
+- name: Initialize Dashboard role mappings
+  ansible.builtin.set_fact:
+    wazuh_dashboard_role_mappings: {}
+
+# =====================================================
+# Build Dashboard role mappings
+# =====================================================
+
+- name: Build Dashboard role mappings
+  ansible.builtin.set_fact:
+    wazuh_dashboard_role_mappings: >-
+      {{
+        wazuh_dashboard_role_mappings
+        | combine(
+            {
+              item.1: {
+                'reserved': false,
+                'backend_roles': (
+                  (
+                    wazuh_dashboard_role_mappings[item.1].backend_roles
+                    if item.1 in wazuh_dashboard_role_mappings
+                    else []
+                  )
+                  + [item.1]
+                ) | unique,
+                'users': (
+                  (
+                    wazuh_dashboard_role_mappings[item.1].users
+                    if item.1 in wazuh_dashboard_role_mappings
+                    else []
+                  )
+                  + [item.0.user]
+                ) | unique
+              }
+            },
+            recursive=True
+          )
+      }}
+  loop: "{{ wazuh_api_rbac_user_role_mappings | subelements('roles') }}"
+  loop_control:
+    label: "{{ item.0.user }} -> {{ item.1 }}"
+
+# =====================================================
+# Display generated Dashboard role mappings
+# =====================================================
+
+- name: Display generated Dashboard role mappings
+  ansible.builtin.debug:
+    var: wazuh_dashboard_role_mappings
+
+# =====================================================
+# Merge Dashboard role mappings
+# =====================================================
+
+- name: Merge Dashboard role mappings
+  ansible.builtin.set_fact:
+    wazuh_dashboard_roles_mapping_final: >-
+      {{
+        wazuh_dashboard_roles_mapping_existing
+        | combine(
+            wazuh_dashboard_role_mappings,
+            recursive=True
+          )
+      }}
+
+# =====================================================
+# Display merged role mappings
+# =====================================================
+
+- name: Display merged OpenSearch role mappings
+  ansible.builtin.debug:
+    var: wazuh_dashboard_roles_mapping_final
+
+# =====================================================
+# Update roles_mapping.yml
+# =====================================================
+
+- name: Update OpenSearch roles_mapping.yml
+  ansible.builtin.copy:
+    dest: "{{ wazuh_opensearch_roles_mapping_file }}"
+    content: "{{ wazuh_dashboard_roles_mapping_final | to_nice_yaml(indent=2) }}"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+    backup: true
+
+# =====================================================
+# Verify roles_mapping.yml
+# =====================================================
+
+- name: Read updated OpenSearch roles mapping
+  ansible.builtin.slurp:
+    src: "{{ wazuh_opensearch_roles_mapping_file }}"
+  register: wazuh_dashboard_roles_mapping_verify
+
+- name: Display updated OpenSearch role mappings
+  ansible.builtin.debug:
+    msg: "{{ wazuh_dashboard_roles_mapping_verify.content | b64decode | from_yaml }}"

@@ -11,13 +11,13 @@
     group: wazuh-indexer
     mode: "0755"
 
-- name: Download wazuh certificate tool
+- name: Download Wazuh certificate tool
   ansible.builtin.get_url:
-    url: "https://packages.wazuh.com/4.14/wazuh-certs-tool.sh"
+    url: "https://packages.wazuh.com/{{ wazuh_version }}/wazuh-certs-tool.sh"
     dest: "{{ wazuh_cert_script }}"
     mode: "0755"
 
-- name: Render wazuh certificate config
+- name: Render Wazuh certificate configuration
   ansible.builtin.template:
     src: certs-config.yml.j2
     dest: "{{ wazuh_cert_config }}"
@@ -26,24 +26,61 @@
     mode: "0644"
 
 # =====================================================
-# Check if certificates already exist
+# Check Existing Certificates
 # =====================================================
 
-- name: Check if Wazuh certificates already exist
+- name: Check if indexer certificate already exists
   ansible.builtin.stat:
-    path: "{{ wazuh_certificates_dir }}"
+    path: "{{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}.pem"
   register: wazuh_certs_check
 
-- name: Generate wazuh certificates
-  ansible.builtin.command: >
-    bash wazuh-certs-tool.sh -A
-  args:
-    chdir: "{{ wazuh_cert_tool_dir }}"
+# =====================================================
+# Remove stale certificate directory
+# =====================================================
+
+- name: Remove stale Wazuh certificate directory
+  ansible.builtin.file:
+    path: "{{ wazuh_certificates_dir }}"
+    state: absent
   when: not wazuh_certs_check.stat.exists
 
+# =====================================================
+# Generate Certificates
+# =====================================================
+
+- name: Generate Wazuh certificates
+  ansible.builtin.command:
+    cmd: "./wazuh-certs-tool.sh -A"
+    chdir: "{{ wazuh_cert_tool_dir }}"
+  register: wazuh_generate_certs
+  when: not wazuh_certs_check.stat.exists
+  changed_when: true
+  failed_when: wazuh_generate_certs.rc != 0
 
 # =====================================================
-# Create Indexer Certificate Directory
+# Verify Certificate Generation
+# =====================================================
+
+- name: Verify generated indexer certificate
+  ansible.builtin.stat:
+    path: "{{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}.pem"
+  register: generated_indexer_cert
+
+- name: Fail if certificates were not generated
+  ansible.builtin.assert:
+    that:
+      - generated_indexer_cert.stat.exists
+    fail_msg: |
+      Wazuh certificate generation failed.
+
+      Expected:
+      {{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}.pem
+
+      Check:
+      {{ wazuh_cert_tool_dir }}/wazuh-certificates-tool.log
+
+# =====================================================
+# Create Certificate Directories
 # =====================================================
 
 - name: Create indexer certificate directory
@@ -54,46 +91,6 @@
     group: wazuh-indexer
     mode: "0755"
 
-
-# =====================================================
-# Move Indexer Certificates
-# =====================================================
-
-- name: Move indexer certificate
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}.pem {{ wazuh_tls_cert_file }}
-  args:
-    creates: "{{ wazuh_tls_cert_file }}"
-
-- name: Move indexer key
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}-key.pem {{ wazuh_tls_key_file }}
-  args:
-    creates: "{{ wazuh_tls_key_file }}"
-
-- name: Move root CA
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/root-ca.pem {{ wazuh_tls_ca_file }}
-  args:
-    creates: "{{ wazuh_tls_ca_file }}"
-
-- name: Move admin certificate
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/admin.pem {{ wazuh_tls_admin_cert_file }}
-  args:
-    creates: "{{ wazuh_tls_admin_cert_file }}"
-
-- name: Move admin key
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/admin-key.pem {{ wazuh_tls_admin_key_file }}
-  args:
-    creates: "{{ wazuh_tls_admin_key_file }}"
-
-
-# =====================================================
-# Dashboard Certificates
-# =====================================================
-
 - name: Create dashboard certificate directory
   ansible.builtin.file:
     path: "{{ wazuh_dashboard_cert_dir }}"
@@ -102,63 +99,115 @@
     group: wazuh-dashboard
     mode: "0755"
 
-- name: Move dashboard certificate
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/{{ wazuh_dashboard_node_name }}.pem {{ wazuh_dashboard_cert_file }}
-  args:
-    creates: "{{ wazuh_dashboard_cert_file }}"
+# =====================================================
+# Copy Indexer Certificates
+# =====================================================
 
-- name: Move dashboard key
-  ansible.builtin.command: >
-    mv {{ wazuh_certificates_dir }}/{{ wazuh_dashboard_node_name }}-key.pem {{ wazuh_dashboard_key_file }}
-  args:
-    creates: "{{ wazuh_dashboard_key_file }}"
+- name: Copy indexer certificate
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}.pem"
+    dest: "{{ wazuh_tls_cert_file }}"
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
 
+- name: Copy indexer key
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/{{ wazuh_indexer_node_name }}-key.pem"
+    dest: "{{ wazuh_tls_key_file }}"
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+
+- name: Copy root CA
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/root-ca.pem"
+    dest: "{{ wazuh_tls_ca_file }}"
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+
+- name: Copy admin certificate
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/admin.pem"
+    dest: "{{ wazuh_tls_admin_cert_file }}"
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+
+- name: Copy admin key
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/admin-key.pem"
+    dest: "{{ wazuh_tls_admin_key_file }}"
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
 
 # =====================================================
-# Allow Dashboard to Access Certificates (manual fix automation)
+# Copy Dashboard Certificates
+# =====================================================
+
+- name: Copy dashboard certificate
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/{{ wazuh_dashboard_node_name }}.pem"
+    dest: "{{ wazuh_dashboard_cert_file }}"
+    remote_src: true
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+
+- name: Copy dashboard key
+  ansible.builtin.copy:
+    src: "{{ wazuh_certificates_dir }}/{{ wazuh_dashboard_node_name }}-key.pem"
+    dest: "{{ wazuh_dashboard_key_file }}"
+    remote_src: true
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+
+# =====================================================
+# Allow Dashboard Access
 # =====================================================
 
 - name: Add wazuh-dashboard user to wazuh-indexer group
   ansible.builtin.user:
     name: wazuh-dashboard
     groups: wazuh-indexer
-    append: yes
-
+    append: true
 
 # =====================================================
-# Set Indexer Certificate Permissions
+# Set Directory Permissions
 # =====================================================
 
-- name: Set indexer cert directory permissions
+- name: Set indexer certificate directory permissions
   ansible.builtin.file:
     path: "{{ wazuh_indexer_cert_dir }}"
     owner: wazuh-indexer
     group: wazuh-indexer
     mode: "0750"
 
-- name: Set indexer certificate file permissions
+- name: Set dashboard certificate directory permissions
   ansible.builtin.file:
-    path: "{{ item }}"
-    owner: wazuh-indexer
-    group: wazuh-indexer
-    mode: "0640"
-  loop:
-    - "{{ wazuh_tls_admin_cert_file }}"
-    - "{{ wazuh_tls_admin_key_file }}"
-    - "{{ wazuh_tls_ca_file }}"
-
+    path: "{{ wazuh_dashboard_cert_dir }}"
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0750"
 
 # =====================================================
-# Restart services (to apply permissions)
+# Restart Services
 # =====================================================
 
-- name: Restart wazuh-indexer
+- name: Restart Wazuh Indexer
   ansible.builtin.service:
     name: wazuh-indexer
     state: restarted
 
-- name: Restart wazuh-dashboard
+- name: Restart Wazuh Dashboard
   ansible.builtin.service:
     name: wazuh-dashboard
     state: restarted

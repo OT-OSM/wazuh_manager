@@ -1,0 +1,97 @@
+---
+# =====================================================
+# Wazuh API RBAC - Role Policy Mappings
+# =====================================================
+
+- name: Display Wazuh API RBAC role policy mappings
+  ansible.builtin.debug:
+    var: wazuh_api_rbac_role_policy_mappings
+
+# =====================================================
+# Validate required ID maps
+# =====================================================
+
+- name: Verify RBAC object IDs are available
+  ansible.builtin.assert:
+    that:
+      - wazuh_rbac_object_ids.roles is defined
+      - wazuh_rbac_object_ids.policies is defined
+    fail_msg: >
+      RBAC object IDs not available.
+      Execute object provisioning before role-policy mappings.
+  tags:
+    - wazuh
+    - rbac
+    - role-policy
+
+# =====================================================
+# Configure Role → Policy mappings
+# =====================================================
+
+- name: Link policies to roles
+  ansible.builtin.uri:
+    url: >-
+      {{ wazuh_api_rbac_url }}/security/roles/{{
+      wazuh_rbac_object_ids.roles[item.role]
+      }}/policies?policy_ids={{
+      item.policies
+      | map('extract', wazuh_rbac_object_ids.policies)
+      | join(',')
+      }}
+    method: POST
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  loop: "{{ wazuh_api_rbac_role_policy_mappings }}"
+  loop_control:
+    label: "{{ item.role }}"
+  register: wazuh_role_policy_mapping
+  retries: 5
+  delay: 5
+  until: wazuh_role_policy_mapping is succeeded
+  changed_when: true
+  failed_when:
+    - wazuh_role_policy_mapping.status | default(0) != 200
+  tags:
+    - wazuh
+    - rbac
+    - role-policy
+
+# =====================================================
+# Verify role-policy mappings
+# =====================================================
+
+- name: Get updated Wazuh API roles
+  ansible.builtin.uri:
+    url: "{{ wazuh_api_rbac_url }}/security/roles"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ wazuh_api_rbac_token }}"
+    validate_certs: "{{ wazuh_api_rbac_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: wazuh_updated_roles
+  retries: 5
+  delay: 5
+  until: wazuh_updated_roles.status == 200
+  changed_when: false
+  failed_when:
+    - wazuh_updated_roles.status != 200
+  tags:
+    - wazuh
+    - rbac
+    - role-policy
+
+# =====================================================
+# Display updated role-policy mappings
+# =====================================================
+
+- name: Display updated role-policy mappings
+  ansible.builtin.debug:
+    var: wazuh_updated_roles.json
+  tags:
+    - wazuh
+    - rbac
+    - role-policy

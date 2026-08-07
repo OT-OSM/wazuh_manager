@@ -66,3 +66,26 @@
       - groups['wazuh_cluster'] | length > 1
     fail_msg: "Cluster mode requires 'wazuh_cluster' inventory group with multiple nodes."
   when: wazuh_deployment_mode | default("single") != "single"
+
+
+# =====================================================
+# Wazuh API RBAC Validation
+# =====================================================
+
+- name: Validate Wazuh API RBAC configuration
+  ansible.builtin.assert:
+    that:
+      - wazuh_api_rbac_url is defined
+      - wazuh_api_rbac_url | length > 0
+      - wazuh_api_rbac_admin_user is defined
+      - wazuh_api_rbac_admin_user | length > 0
+      - wazuh_api_rbac_admin_password is defined
+      - wazuh_api_rbac_admin_password | length > 0
+    fail_msg: |
+      Wazuh API RBAC configuration is incomplete.
+
+      Required variables:
+        - wazuh_api_rbac_url
+        - wazuh_api_rbac_admin_user
+        - wazuh_api_rbac_admin_password
+  when: wazuh_api_rbac_enabled | bool
